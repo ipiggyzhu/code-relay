@@ -19,10 +19,10 @@ export type McpServer = {
 }
 
 export const fetchMcpServers = async (): Promise<McpServer[]> => {
-  const response = await Call.ByName('codeswitch/services.MCPService.ListServers')
+  const response = await Call.ByName('coderelay/services.MCPService.ListServers')
   return (response as McpServer[]) ?? []
 }
 
 export const saveMcpServers = async (servers: McpServer[]): Promise<void> => {
-  await Call.ByName('codeswitch/services.MCPService.SaveServers', servers)
+  await Call.ByName('coderelay/services.MCPService.SaveServers', servers)
 }

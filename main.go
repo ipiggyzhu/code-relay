@@ -1,7 +1,7 @@
 package main
 
 import (
-	"codeswitch/services"
+	"coderelay/services"
 	"embed"
 	_ "embed"
 	"fmt"
@@ -69,8 +69,9 @@ func main() {
 	}
 	providerService := services.NewProviderService()
 	providerRelay := services.NewProviderRelayService(providerService, ":18100")
-	claudeSettings := services.NewClaudeSettingsService(providerRelay.Addr())
-	codexSettings := services.NewCodexSettingsService(providerRelay.Addr())
+	commonConfigService := services.NewCommonConfigService()
+	claudeSettings := services.NewClaudeSettingsService(providerRelay.Addr(), commonConfigService)
+	codexSettings := services.NewCodexSettingsService(providerRelay.Addr(), commonConfigService)
 	logService := services.NewLogService()
 	autoStartService := services.NewAutoStartService()
 	appSettings := services.NewAppSettingsService(autoStartService)
@@ -93,12 +94,13 @@ func main() {
 	// 'Bind' is a list of Go struct instances. The frontend has access to the methods of these instances.
 	// 'Mac' options tailor the application when running an macOS.
 	app := application.New(application.Options{
-		Name:        "Code Switch",
-		Description: "Claude Code and Codex provier manager",
+		Name:        "Code Relay",
+		Description: "Claude Code and Codex provider manager",
 		Services: []application.Service{
 			application.NewService(appservice),
 			application.NewService(suiService),
 			application.NewService(providerService),
+			application.NewService(commonConfigService),
 			application.NewService(claudeSettings),
 			application.NewService(codexSettings),
 			application.NewService(logService),
@@ -127,7 +129,7 @@ func main() {
 	// 'BackgroundColour' is the background colour of the window.
 	// 'URL' is the URL that will be loaded into the webview.
 	mainWindow := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:     "Code Switch",
+		Title:     "Code Relay",
 		Width:     1024,
 		Height:    800,
 		MinWidth:  600,
@@ -189,7 +191,7 @@ func main() {
 
 	systray := app.SystemTray.New()
 	// systray.SetLabel("Code Switch")
-	systray.SetTooltip("Code Switch")
+	systray.SetTooltip("Code Relay")
 	if lightIcon := loadTrayIcon("assets/icon.png"); len(lightIcon) > 0 {
 		systray.SetIcon(lightIcon)
 	}

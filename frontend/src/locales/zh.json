@@ -82,7 +82,9 @@
         "settings": "打开设置",
         "mcp": "打开 MCP 面板",
         "skill": "打开 Skill 列表",
-        "import": "导入 cc-switch 配置"
+        "import": "导入 cc-switch 配置",
+        "editClaudeConfig": "编辑 Claude Code 通用配置",
+        "editCodexConfig": "编辑 Codex 通用配置"
       },
       "versionLabel": "版本 {version}",
       "importConfig": {
@@ -90,6 +92,16 @@
         "success": "已导入 {providers} 个供应商与 {servers} 个 MCP 服务器",
         "empty": "cc-switch 中的供应商与 MCP 均已同步",
         "error": "导入 cc-switch 配置失败"
+      },
+      "commonConfig": {
+        "titleClaude": "编辑 Claude Code 通用配置",
+        "titleCodex": "编辑 Codex 通用配置",
+        "hint": "此配置将在切换供应商时合并写入到 Claude Code 或 Codex 的配置文件中。所有供应商共享此配置。",
+        "examples": "配置示例",
+        "exampleTelemetry": "禁用遥测",
+        "exampleTimeout": "设置 MCP 超时时间（毫秒）",
+        "exampleTerminal": "启用终端模式",
+        "exampleCodexTimeout": "设置超时时间（毫秒）"
       },
       "providers": {
         "requests": "请求数",

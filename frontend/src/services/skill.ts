@@ -27,20 +27,20 @@ export type InstallSkillPayload = {
 }
 
 export const fetchSkills = async (): Promise<SkillSummary[]> => {
-  const response = await Call.ByName('codeswitch/services.SkillService.ListSkills')
+  const response = await Call.ByName('coderelay/services.SkillService.ListSkills')
   return (response as SkillSummary[]) ?? []
 }
 
 export const installSkill = async (payload: InstallSkillPayload): Promise<void> => {
-  await Call.ByName('codeswitch/services.SkillService.InstallSkill', payload)
+  await Call.ByName('coderelay/services.SkillService.InstallSkill', payload)
 }
 
 export const uninstallSkill = async (directory: string): Promise<void> => {
-  await Call.ByName('codeswitch/services.SkillService.UninstallSkill', directory)
+  await Call.ByName('coderelay/services.SkillService.UninstallSkill', directory)
 }
 
 export const fetchSkillRepos = async (): Promise<SkillRepoConfig[]> => {
-  const response = await Call.ByName('codeswitch/services.SkillService.ListRepos')
+  const response = await Call.ByName('coderelay/services.SkillService.ListRepos')
   return (response as SkillRepoConfig[]) ?? []
 }
 
@@ -51,11 +51,11 @@ export const addSkillRepo = async (repo: Partial<SkillRepoConfig>): Promise<Skil
     branch: repo.branch ?? 'main',
     enabled: repo.enabled ?? true
   }
-  const response = await Call.ByName('codeswitch/services.SkillService.AddRepo', payload)
+  const response = await Call.ByName('coderelay/services.SkillService.AddRepo', payload)
   return (response as SkillRepoConfig[]) ?? []
 }
 
 export const removeSkillRepo = async (owner: string, name: string): Promise<SkillRepoConfig[]> => {
-  const response = await Call.ByName('codeswitch/services.SkillService.RemoveRepo', owner, name)
+  const response = await Call.ByName('coderelay/services.SkillService.RemoveRepo', owner, name)
   return (response as SkillRepoConfig[]) ?? []
 }

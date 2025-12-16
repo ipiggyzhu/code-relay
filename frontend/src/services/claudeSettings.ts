@@ -1,11 +1,11 @@
 import { Call } from '@wailsio/runtime'
-import type { ClaudeProxyStatus } from '../../bindings/codeswitch/services/models'
+import type { ClaudeProxyStatus } from '../../bindings/coderelay/services/models'
 
 type Platform = 'claude' | 'codex'
 
 const serviceNames: Record<Platform, string> = {
-  claude: 'codeswitch/services.ClaudeSettingsService',
-  codex: 'codeswitch/services.CodexSettingsService',
+  claude: 'coderelay/services.ClaudeSettingsService',
+  codex: 'coderelay/services.CodexSettingsService',
 }
 
 const callByPlatform = async <T = unknown>(platform: Platform, method: string, payload?: any[]): Promise<T> => {

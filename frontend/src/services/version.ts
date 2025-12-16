@@ -1,4 +1,4 @@
-import { CurrentVersion } from '../../bindings/codeswitch/versionservice'
+import { CurrentVersion } from '../../bindings/coderelay/versionservice'
 
 export const fetchCurrentVersion = async (): Promise<string> => {
   const version = await CurrentVersion()

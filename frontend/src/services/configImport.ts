@@ -25,23 +25,23 @@ const emptyStatus: ConfigImportStatus = {
 }
 
 export const fetchConfigImportStatus = async (): Promise<ConfigImportStatus> => {
-  const response = await Call.ByName('codeswitch/services.ImportService.GetStatus')
+  const response = await Call.ByName('coderelay/services.ImportService.GetStatus')
   return (response as ConfigImportStatus) ?? emptyStatus
 }
 
 export const fetchConfigImportStatusForFile = async (
   path: string,
 ): Promise<ConfigImportStatus> => {
-  const response = await Call.ByName('codeswitch/services.ImportService.GetStatusForFile', path)
+  const response = await Call.ByName('coderelay/services.ImportService.GetStatusForFile', path)
   return response as ConfigImportStatus
 }
 
 export const importFromCcSwitch = async (): Promise<ConfigImportResult> => {
-  const response = await Call.ByName('codeswitch/services.ImportService.ImportAll')
+  const response = await Call.ByName('coderelay/services.ImportService.ImportAll')
   return response as ConfigImportResult
 }
 
 export const importFromCustomFile = async (path: string): Promise<ConfigImportResult> => {
-  const response = await Call.ByName('codeswitch/services.ImportService.ImportFromFile', path)
+  const response = await Call.ByName('coderelay/services.ImportService.ImportFromFile', path)
   return response as ConfigImportResult
 }

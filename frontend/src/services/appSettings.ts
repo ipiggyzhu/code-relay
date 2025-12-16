@@ -13,10 +13,10 @@ const DEFAULT_SETTINGS: AppSettings = {
 }
 
 export const fetchAppSettings = async (): Promise<AppSettings> => {
-  const data = await Call.ByName('codeswitch/services.AppSettingsService.GetAppSettings')
+  const data = await Call.ByName('coderelay/services.AppSettingsService.GetAppSettings')
   return data ?? DEFAULT_SETTINGS
 }
 
 export const saveAppSettings = async (settings: AppSettings): Promise<AppSettings> => {
-  return Call.ByName('codeswitch/services.AppSettingsService.SaveAppSettings', settings)
+  return Call.ByName('coderelay/services.AppSettingsService.SaveAppSettings', settings)
 }

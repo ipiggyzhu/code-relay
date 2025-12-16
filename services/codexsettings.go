@@ -25,11 +25,15 @@ const (
 )
 
 type CodexSettingsService struct {
-	relayAddr string
+	relayAddr           string
+	commonConfigService *CommonConfigService
 }
 
-func NewCodexSettingsService(relayAddr string) *CodexSettingsService {
-	return &CodexSettingsService{relayAddr: relayAddr}
+func NewCodexSettingsService(relayAddr string, commonConfigService *CommonConfigService) *CodexSettingsService {
+	return &CodexSettingsService{
+		relayAddr:           relayAddr,
+		commonConfigService: commonConfigService,
+	}
 }
 
 func (css *CodexSettingsService) ProxyStatus() (ClaudeProxyStatus, error) {
@@ -239,6 +243,8 @@ func (css *CodexSettingsService) writeAuthFile() error {
 	if err := os.MkdirAll(filepath.Dir(authPath), 0o755); err != nil {
 		return err
 	}
+
+	// 备份现有文件
 	if _, err := os.Stat(authPath); err == nil {
 		content, readErr := os.ReadFile(authPath)
 		if readErr != nil {
@@ -248,9 +254,24 @@ func (css *CodexSettingsService) writeAuthFile() error {
 			return err
 		}
 	}
-	payload := map[string]string{
+
+	// 读取通用配置
+	commonConfig, err := css.commonConfigService.GetCommonConfig("codex")
+	if err != nil {
+		return err
+	}
+
+	// 构建基础配置
+	payload := map[string]interface{}{
 		codexEnvKey: codexTokenValue,
 	}
+
+	// 合并通用配置
+	for key, value := range commonConfig {
+		payload[key] = value
+	}
+
+	// 序列化并写入
 	data, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {
 		return err

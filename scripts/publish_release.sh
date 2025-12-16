@@ -20,7 +20,7 @@ if [ ! -f "$NOTES" ]; then
   exit 1
 fi
 
-MAC_APP_PRIMARY="bin/CodeSwitch.app"
+MAC_APP_PRIMARY="bin/CodeRelay.app"
 CONFIG_FILE="build/config.yml"
 MAC_ARCHS=("arm64" "amd64")
 MAC_ZIPS=()
@@ -28,8 +28,8 @@ MAC_ZIPS=()
 package_macos_arch() {
   local arch="$1"
   local staging_dir="bin/package-${arch}"
-  local staging_app="${staging_dir}/CodeSwitch.app"
-  local zip_path="bin/CodeSwitch-macos-${arch}.zip"
+  local staging_app="${staging_dir}/CodeRelay.app"
+  local zip_path="bin/CodeRelay-macos-${arch}.zip"
 
   echo "==> Building macOS ${arch}"
   env ARCH="$arch" wails3 task package ${BUILD_OPTS:-}
@@ -65,8 +65,8 @@ env ARCH=amd64 wails3 task windows:package ${BUILD_OPTS:-}
 
 ASSETS=(
   "${MAC_ZIPS[@]}"
-  "bin/codeswitch-amd64-installer.exe"
-  "bin/codeswitch.exe"
+  "bin/coderelay-amd64-installer.exe"
+  "bin/coderelay.exe"
 )
 
 for asset in "${ASSETS[@]}"; do

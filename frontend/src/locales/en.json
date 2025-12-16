@@ -81,7 +81,9 @@
         "settings": "Open settings",
         "mcp": "Open MCP panel",
         "skill": "Open skill catalog",
-        "import": "Import cc-switch config"
+        "import": "Import cc-switch config",
+        "editClaudeConfig": "Edit Claude Code common config",
+        "editCodexConfig": "Edit Codex common config"
       },
       "versionLabel": "Version {version}",
       "importConfig": {
@@ -89,6 +91,16 @@
         "success": "Imported {providers} providers and {servers} MCP servers",
         "empty": "Everything from cc-switch is already in sync",
         "error": "Failed to import cc-switch config"
+      },
+      "commonConfig": {
+        "titleClaude": "Edit Claude Code Common Config",
+        "titleCodex": "Edit Codex Common Config",
+        "hint": "This configuration will be merged into Claude Code or Codex settings when switching providers. All providers share this config.",
+        "examples": "Examples",
+        "exampleTelemetry": "Disable telemetry",
+        "exampleTimeout": "Set MCP timeout (milliseconds)",
+        "exampleTerminal": "Enable terminal mode",
+        "exampleCodexTimeout": "Set timeout (milliseconds)"
       },
       "providers": {
         "requests": "Requests",

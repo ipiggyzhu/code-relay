@@ -1,15 +1,15 @@
 {
 	"fixed": {
-		"file_version": "0.1.8"
+		"file_version": "1.0.0"
 	},
 	"info": {
 		"0000": {
-			"ProductVersion": "0.1.8",
-			"CompanyName": "Code Switch",
+			"ProductVersion": "1.0.0",
+			"CompanyName": "Code Relay",
 			"FileDescription": "Manage Claude & Codex relays, providers, and request logs.",
-			"LegalCopyright": "(c) 2025, Code Switch",
-			"ProductName": "Code Switch",
-			"Comments": "Code Switch desktop relay controller"
+			"LegalCopyright": "(c) 2025, ipiggyzhu",
+			"ProductName": "Code Relay",
+			"Comments": "Code Relay desktop relay controller"
 		}
 	}
 }

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	modelpricing "codeswitch/resources/model-pricing"
+	modelpricing "coderelay/resources/model-pricing"
 
 	"github.com/daodao97/xgo/xdb"
 )

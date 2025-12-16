@@ -1,4 +1,4 @@
-# Code Switch
+# Code Relay
 
 集中管理 Claude Code & Codex 供应商
 
@@ -24,11 +24,11 @@
 
 请求由 proxyHandler 动态挑选符合当前优先级与启用状态的 provider，并在失败时自动回退。
 
-以上流程让 cli 看到的是一个固定的本地地址，而真实请求会被 Code Switch 透明地路由到你在应用里维护的供应商列表
+以上流程让 cli 看到的是一个固定的本地地址，而真实请求会被 Code Relay 透明地路由到你在应用里维护的供应商列表
 
 ## 下载
 
-[macOS](https://github.com/daodao97/code-swtich/releases) | [windows](https://github.com/daodao97/code-swtich/releases) 
+[macOS](https://github.com/ipiggyzhu/code-relay/releases) | [windows](https://github.com/ipiggyzhu/code-relay/releases)
 
 
 ## 预览
@@ -72,10 +72,10 @@ wails3 task dev
 
 ## 发布
 脚本 `scripts/publish_release.sh v0.1.0` 将自动打包并上传以下资产（macOS 会分别构建 arm64 与 amd64）：
-- `codeswitch-macos-arm64.zip`
-- `codeswitch-macos-amd64.zip`
-- `codeswitch-arm64-installer.exe`
-- `codeswitch.exe`
+- `coderelay-macos-arm64.zip`
+- `coderelay-macos-amd64.zip`
+- `coderelay-arm64-installer.exe`
+- `coderelay.exe`
 
 若要手动发布，可执行：
 ```bash
@@ -87,3 +87,12 @@ scripts/publish_release.sh
 ## 常见问题
 - 若 `.app` 无法打开，先执行 `wails3 task common:update:build-assets` 后再构建。
 - macOS 交叉编译需要终端拥有完全磁盘访问权限，否则 `~/Library/Caches/go-build` 会报 *operation not permitted*。
+
+## 致谢
+
+本项目基于以下开源项目二次开发，特别感谢原作者的贡献：
+
+- **[daodao97/code-switch](https://github.com/daodao97/code-switch)** - 原始 Wails 3 版本
+- **[anthropics/claude-code](https://github.com/anthropics/claude-code)** - Claude Code CLI
+
+感谢 [@daodao97](https://github.com/daodao97) 创建了这个优秀的工具！

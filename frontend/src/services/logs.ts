@@ -34,11 +34,11 @@ export const fetchRequestLogs = async (query: RequestLogQuery = {}): Promise<Req
   const platform = query.platform ?? ''
   const provider = query.provider ?? ''
   const limit = query.limit ?? 100
-  return Call.ByName('codeswitch/services.LogService.ListRequestLogs', platform, provider, limit)
+  return Call.ByName('coderelay/services.LogService.ListRequestLogs', platform, provider, limit)
 }
 
 export const fetchLogProviders = async (platform = ''): Promise<string[]> => {
-  return Call.ByName('codeswitch/services.LogService.ListProviders', platform)
+  return Call.ByName('coderelay/services.LogService.ListProviders', platform)
 }
 
 export type LogStatsSeries = {
@@ -68,7 +68,7 @@ export type LogStats = {
 }
 
 export const fetchLogStats = async (platform = ''): Promise<LogStats> => {
-  return Call.ByName('codeswitch/services.LogService.StatsSince', platform)
+  return Call.ByName('coderelay/services.LogService.StatsSince', platform)
 }
 
 export type ProviderDailyStat = {
@@ -88,7 +88,7 @@ export type ProviderDailyStat = {
 export const fetchProviderDailyStats = async (
   platform = '',
 ): Promise<ProviderDailyStat[]> => {
-  return Call.ByName('codeswitch/services.LogService.ProviderDailyStats', platform)
+  return Call.ByName('coderelay/services.LogService.ProviderDailyStats', platform)
 }
 
 export type HeatmapStat = {
@@ -102,5 +102,5 @@ export type HeatmapStat = {
 
 export const fetchHeatmapStats = async (days: number): Promise<HeatmapStat[]> => {
   const range = Number.isFinite(days) && days > 0 ? Math.floor(days) : 30
-  return Call.ByName('codeswitch/services.LogService.HeatmapStats', range)
+  return Call.ByName('coderelay/services.LogService.HeatmapStats', range)
 }

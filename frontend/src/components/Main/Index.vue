@@ -193,6 +193,24 @@
           </button>
           <button
             class="ghost-icon"
+            :data-tooltip="activeTab === 'claude'
+              ? t('components.main.controls.editClaudeConfig')
+              : t('components.main.controls.editCodexConfig')"
+            @click="openCommonConfigModal"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
+          <button
+            class="ghost-icon"
             :data-tooltip="t('components.main.logs.view')"
             @click="goToLogs"
           >
@@ -457,6 +475,65 @@
         </BaseButton>
       </footer>
       </BaseModal>
+
+      <!-- 通用配置编辑弹窗 -->
+      <BaseModal
+        :open="commonConfigState.open"
+        :title="commonConfigState.title"
+        @close="closeCommonConfigModal"
+      >
+        <div class="common-config-editor">
+          <p class="editor-hint">
+            {{ t('components.main.commonConfig.hint') }}
+          </p>
+
+          <textarea
+            v-model="commonConfigState.jsonText"
+            class="config-textarea"
+            rows="16"
+            spellcheck="false"
+            @blur="validateCommonConfig"
+          />
+
+          <p v-if="commonConfigState.error" class="error-message">
+            {{ commonConfigState.error }}
+          </p>
+
+          <div class="config-examples">
+            <p class="examples-title">{{ t('components.main.commonConfig.examples') }}</p>
+            <ul class="examples-list">
+              <template v-if="activeTab === 'claude'">
+                <li>
+                  <code>"DISABLE_TELEMETRY": "1"</code> - {{ t('components.main.commonConfig.exampleTelemetry') }}
+                </li>
+                <li>
+                  <code>"MCP_TIMEOUT": "60000"</code> - {{ t('components.main.commonConfig.exampleTimeout') }}
+                </li>
+                <li>
+                  <code>"claudeCode.useTerminal": true</code> - {{ t('components.main.commonConfig.exampleTerminal') }}
+                </li>
+              </template>
+              <template v-else>
+                <li>
+                  <code>"CODEX_TIMEOUT": "30000"</code> - {{ t('components.main.commonConfig.exampleCodexTimeout') }}
+                </li>
+              </template>
+            </ul>
+          </div>
+        </div>
+
+        <template #footer>
+          <footer class="form-actions">
+            <BaseButton variant="outline" type="button" @click="closeCommonConfigModal">
+              {{ t('components.main.form.actions.cancel') }}
+            </BaseButton>
+            <BaseButton type="button" @click="saveCommonConfig">
+              {{ t('components.main.form.actions.save') }}
+            </BaseButton>
+          </footer>
+        </template>
+      </BaseModal>
+
       <footer v-if="appVersion" class="main-version">
         {{ t('components.main.versionLabel', { version: appVersion }) }}
       </footer>
@@ -484,7 +561,8 @@ import BaseModal from '../common/BaseModal.vue'
 import BaseInput from '../common/BaseInput.vue'
 import ModelWhitelistEditor from '../common/ModelWhitelistEditor.vue'
 import ModelMappingEditor from '../common/ModelMappingEditor.vue'
-import { LoadProviders, SaveProviders } from '../../../bindings/codeswitch/services/providerservice'
+import { LoadProviders, SaveProviders } from '../../../bindings/coderelay/services/providerservice'
+import { GetCommonConfig, SaveCommonConfig } from '../../../bindings/coderelay/services/commonconfigservice'
 import { fetchProxyStatus, enableProxy, disableProxy } from '../../services/claudeSettings'
 import { fetchHeatmapStats, fetchProviderDailyStats, type ProviderDailyStat } from '../../services/logs'
 import { fetchCurrentVersion } from '../../services/version'
@@ -502,8 +580,8 @@ const resolvedTheme = computed(() => {
   return themeMode.value
 })
 const themeIcon = computed(() => (resolvedTheme.value === 'dark' ? 'moon' : 'sun'))
-const releasePageUrl = 'https://github.com/daodao97/code-switch/releases'
-const releaseApiUrl = 'https://api.github.com/repos/daodao97/code-switch/releases/latest'
+const releasePageUrl = 'https://github.com/ipiggyzhu/code-relay/releases'
+const releaseApiUrl = 'https://api.github.com/repos/ipiggyzhu/code-relay/releases/latest'
 
 const HEATMAP_DAYS = DEFAULT_HEATMAP_DAYS
 const usageHeatmap = ref<UsageHeatmapWeek[]>(generateFallbackUsageHeatmap(HEATMAP_DAYS))
@@ -1063,6 +1141,14 @@ const modalState = reactive({
 const editingCard = ref<AutomationCard | null>(null)
 const confirmState = reactive({ open: false, card: null as AutomationCard | null, tabId: tabs[0].id as ProviderTab })
 
+// 通用配置状态
+const commonConfigState = reactive({
+  open: false,
+  title: '',
+  jsonText: '',
+  error: '',
+})
+
 const openCreateModal = () => {
   modalState.tabId = activeTab.value
   modalState.editingId = null
@@ -1174,6 +1260,75 @@ const confirmRemove = () => {
   closeConfirm()
 }
 
+// 通用配置相关函数
+const openCommonConfigModal = async () => {
+  const kind = activeTab.value // 'claude' 或 'codex'
+
+  try {
+    const config = await GetCommonConfig(kind)
+    commonConfigState.jsonText = Object.keys(config).length > 0
+      ? JSON.stringify(config, null, 2)
+      : ''
+    commonConfigState.title = activeTab.value === 'claude'
+      ? t('components.main.commonConfig.titleClaude')
+      : t('components.main.commonConfig.titleCodex')
+    commonConfigState.error = ''
+    commonConfigState.open = true
+  } catch (error) {
+    console.error('Failed to load common config:', error)
+  }
+}
+
+const closeCommonConfigModal = () => {
+  commonConfigState.open = false
+}
+
+const validateCommonConfig = () => {
+  if (!commonConfigState.jsonText.trim()) {
+    commonConfigState.error = ''
+    return true
+  }
+
+  try {
+    JSON.parse(commonConfigState.jsonText)
+    commonConfigState.error = ''
+    return true
+  } catch (e: any) {
+    commonConfigState.error = `JSON 格式错误: ${e.message}`
+    return false
+  }
+}
+
+const saveCommonConfig = async () => {
+  if (!validateCommonConfig()) {
+    return
+  }
+
+  const kind = activeTab.value
+  let config: Record<string, any> = {}
+
+  if (commonConfigState.jsonText.trim()) {
+    try {
+      config = JSON.parse(commonConfigState.jsonText)
+    } catch (e: any) {
+      commonConfigState.error = `JSON 格式错误: ${e.message}`
+      return
+    }
+  }
+
+  try {
+    await SaveCommonConfig(kind, config)
+    closeCommonConfigModal()
+
+    // 重新启用代理以应用新配置
+    if (activeProxyState.value) {
+      await enableProxy(kind)
+    }
+  } catch (error: any) {
+    commonConfigState.error = `保存失败: ${error}`
+  }
+}
+
 const onDragStart = (id: number) => {
   draggingId.value = id
 }
@@ -1230,6 +1385,84 @@ const onTabChange = (idx: number) => {
   text-align: center;
   color: var(--mac-text-secondary);
   font-size: 0.85rem;
+}
+
+/* 通用配置编辑器样式 */
+.common-config-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.editor-hint {
+  color: var(--foreground-muted);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.config-textarea {
+  width: 100%;
+  padding: 12px;
+  font-family: 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--foreground);
+  background-color: var(--background-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  resize: vertical;
+  transition: all 0.2s;
+}
+
+.config-textarea:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.1);
+}
+
+.error-message {
+  padding: 8px 12px;
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid var(--error);
+  border-radius: 6px;
+  color: var(--error);
+  font-size: 0.8125rem;
+  font-family: 'SF Mono', 'Menlo', 'Monaco', monospace;
+}
+
+.config-examples {
+  padding: 12px;
+  background-color: var(--background-secondary);
+  border-radius: 8px;
+  font-size: 0.8125rem;
+}
+
+.examples-title {
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: var(--foreground);
+}
+
+.examples-list {
+  margin: 0;
+  padding-left: 20px;
+  list-style: disc;
+  color: var(--foreground-muted);
+}
+
+.examples-list li {
+  margin-bottom: 6px;
+  line-height: 1.5;
+}
+
+.examples-list code {
+  padding: 2px 6px;
+  background-color: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: 'SF Mono', 'Menlo', 'Monaco', monospace;
+  font-size: 0.75rem;
+  color: var(--accent-primary);
 }
 
 </style>

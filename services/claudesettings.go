@@ -21,11 +21,15 @@ type ClaudeProxyStatus struct {
 }
 
 type ClaudeSettingsService struct {
-	relayAddr string
+	relayAddr           string
+	commonConfigService *CommonConfigService
 }
 
-func NewClaudeSettingsService(relayAddr string) *ClaudeSettingsService {
-	return &ClaudeSettingsService{relayAddr: relayAddr}
+func NewClaudeSettingsService(relayAddr string, commonConfigService *CommonConfigService) *ClaudeSettingsService {
+	return &ClaudeSettingsService{
+		relayAddr:           relayAddr,
+		commonConfigService: commonConfigService,
+	}
 }
 
 func (css *ClaudeSettingsService) ProxyStatus() (ClaudeProxyStatus, error) {
@@ -60,6 +64,8 @@ func (css *ClaudeSettingsService) EnableProxy() error {
 	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o755); err != nil {
 		return err
 	}
+
+	// 备份现有配置
 	if _, err := os.Stat(settingsPath); err == nil {
 		content, readErr := os.ReadFile(settingsPath)
 		if readErr != nil {
@@ -69,12 +75,27 @@ func (css *ClaudeSettingsService) EnableProxy() error {
 			return err
 		}
 	}
-	settings := claudeSettingsFile{
-		Env: map[string]string{
+
+	// 读取通用配置
+	commonConfig, err := css.commonConfigService.GetCommonConfig("claude")
+	if err != nil {
+		return err
+	}
+
+	// 构建基础配置
+	settings := map[string]interface{}{
+		"env": map[string]string{
 			"ANTHROPIC_AUTH_TOKEN": claudeAuthTokenValue,
 			"ANTHROPIC_BASE_URL":   css.baseURL(),
 		},
 	}
+
+	// 合并通用配置
+	for key, value := range commonConfig {
+		settings[key] = value
+	}
+
+	// 序列化并写入
 	payload, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
 		return err
