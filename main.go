@@ -65,7 +65,7 @@ func main() {
 
 	suiService, errt := services.NewSuiStore()
 	if errt != nil {
-		// 处理错误，比如日志或退出
+		log.Printf("failed to initialize SuiStore: %v", errt)
 	}
 	providerService := services.NewProviderService()
 	providerRelay := services.NewProviderRelayService(providerService, ":18100")

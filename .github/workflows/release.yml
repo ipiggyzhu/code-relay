@@ -96,9 +96,7 @@ jobs:
       - name: Build Windows Binary
         run: |
           $env:ARCH = "amd64"
-          wails3 task windows:build
-        env:
-          PRODUCTION: "true"
+          wails3 task windows:build PRODUCTION=true
 
       - name: Verify Binary
         run: |

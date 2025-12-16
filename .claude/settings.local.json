@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__sequential-thinking__sequentialthinking",
+      "Bash(go build:*)",
+      "Bash(powershell -Command \"Get-ChildItem -Path ''code-switch'' -Force | Move-Item -Destination ''.'' -Force\")",
+      "Bash(pip install:*)",
+      "Bash(python:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(git add:*)",
+      "Bash(git reset:*)",
+      "Bash(git push:*)",
+      "Bash(git tag:*)"
+    ]
+  }
+}
