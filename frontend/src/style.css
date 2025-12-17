@@ -1253,15 +1253,22 @@ html.dark .ghost-icon:hover {
   backdrop-filter: blur(6px);
 }
 
-.mac-modal-wrapper {
+.mac-modal-root {
   position: relative;
-  z-index: 1;
-  min-height: 100vh;
+  z-index: 2000;
+}
+
+.mac-modal-wrapper {
+  position: fixed;
+  inset: 0;
+  z-index: 2001;
+  overflow-y: auto;
   width: 100%;
-  padding: 24px;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 24px;
 }
 
 .mac-modal {

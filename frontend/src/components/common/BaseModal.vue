@@ -1,18 +1,44 @@
 <template>
   <TransitionRoot as="template" :show="open">
-    <Dialog as="div" class="mac-modal-backdrop" :open="open" @close="$emit('close')">
-      <div class="mac-modal-overlay" aria-hidden="true"></div>
+    <Dialog as="div" class="mac-modal-root" @close="$emit('close')">
+      <!-- Backdrop -->
+      <TransitionChild
+        as="template"
+        enter="mac-backdrop-enter-active"
+        enter-from="mac-backdrop-enter-from"
+        enter-to="mac-backdrop-enter-to"
+        leave="mac-backdrop-leave-active"
+        leave-from="mac-backdrop-leave-from"
+        leave-to="mac-backdrop-leave-to"
+      >
+        <div class="mac-modal-backdrop" aria-hidden="true">
+          <div class="mac-modal-overlay"></div>
+        </div>
+      </TransitionChild>
+
+      <!-- Scrollable container -->
       <div class="mac-modal-wrapper">
-        <DialogPanel :class="['mac-modal', variantClass]">
-          <header class="mac-modal-header">
-            <DialogTitle class="mac-modal-title">{{ title }}</DialogTitle>
-            <button class="ghost-icon" aria-label="Close" @click="$emit('close')">✕</button>
-          </header>
-          <div class="mac-modal-body mac-modal-scrollable">
-            <slot />
-          </div>
-          <slot name="footer" />
-        </DialogPanel>
+        <!-- Panel Transition -->
+        <TransitionChild
+          as="template"
+          enter="mac-modal-enter-active"
+          enter-from="mac-modal-enter-from"
+          enter-to="mac-modal-enter-to"
+          leave="mac-modal-leave-active"
+          leave-from="mac-modal-leave-from"
+          leave-to="mac-modal-leave-to"
+        >
+          <DialogPanel :class="['mac-modal', variantClass]">
+            <header class="mac-modal-header">
+              <DialogTitle class="mac-modal-title">{{ title }}</DialogTitle>
+              <button class="ghost-icon" aria-label="Close" @click="$emit('close')">✕</button>
+            </header>
+            <div class="mac-modal-body mac-modal-scrollable">
+              <slot />
+            </div>
+            <slot name="footer" />
+          </DialogPanel>
+        </TransitionChild>
       </div>
     </Dialog>
   </TransitionRoot>
