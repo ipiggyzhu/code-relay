@@ -1256,10 +1256,7 @@ html.dark .ghost-icon:hover {
   backdrop-filter: blur(6px);
 }
 
-.mac-modal-root {
-  position: relative;
-  z-index: 2000;
-}
+/* .mac-modal-root is defined in BaseModal.vue (scoped) - DO NOT duplicate here */
 
 .mac-modal-wrapper {
   position: fixed;
