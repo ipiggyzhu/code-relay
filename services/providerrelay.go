@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -44,9 +45,9 @@ func NewProviderRelayService(providerService *ProviderService, addr string) *Pro
 			MaxIdleConn: 1,
 		},
 	}); err != nil {
-		fmt.Printf("初始化数据库失败: %v\n", err)
+		log.Printf("初始化数据库失败: %v", err)
 	} else if err := ensureRequestLogTable(); err != nil {
-		fmt.Printf("初始化 request_log 表失败: %v\n", err)
+		log.Printf("初始化 request_log 表失败: %v", err)
 	}
 
 	return &ProviderRelayService{
@@ -56,16 +57,13 @@ func NewProviderRelayService(providerService *ProviderService, addr string) *Pro
 }
 
 func (prs *ProviderRelayService) Start() error {
-	// 启动前验证配置
-	if warnings := prs.validateConfig(); len(warnings) > 0 {
-		fmt.Println("======== Provider 配置验证警告 ========")
-		for _, warn := range warnings {
-			fmt.Printf("⚠️  %s\n", warn)
-		}
-		fmt.Println("========================================")
-	}
+	// 启动前验证配置（静默，不输出到控制台）
+	_ = prs.validateConfig()
 
-	router := gin.Default()
+	// 生产模式：禁用 GIN 控制台输出
+	gin.SetMode(gin.ReleaseMode)
+	router := gin.New()
+	router.Use(gin.Recovery())
 	prs.registerRoutes(router)
 
 	prs.server = &http.Server{
@@ -73,11 +71,9 @@ func (prs *ProviderRelayService) Start() error {
 		Handler: router,
 	}
 
-	fmt.Printf("provider relay server listening on %s\n", prs.addr)
-
 	go func() {
 		if err := prs.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			fmt.Printf("provider relay server error: %v\n", err)
+			log.Printf("provider relay server error: %v", err)
 		}
 	}()
 	return nil
@@ -160,9 +156,9 @@ func (prs *ProviderRelayService) proxyHandler(kind string, endpoint string) gin.
 		isStream := gjson.GetBytes(bodyBytes, "stream").Bool()
 		requestedModel := gjson.GetBytes(bodyBytes, "model").String()
 
-		// 如果未指定模型，记录警告但不拦截
+		// 如果未指定模型，静默处理
 		if requestedModel == "" {
-			fmt.Printf("[WARN] 请求未指定模型名，无法执行模型智能降级\n")
+			// 无法执行模型智能降级，但不阻塞请求
 		}
 
 		providers, err := prs.providerService.LoadProviders(kind)
@@ -181,14 +177,12 @@ func (prs *ProviderRelayService) proxyHandler(kind string, endpoint string) gin.
 
 			// 配置验证：失败则自动跳过
 			if errs := provider.ValidateConfiguration(); len(errs) > 0 {
-				fmt.Printf("[WARN] Provider %s 配置验证失败，已自动跳过: %v\n", provider.Name, errs)
 				skippedCount++
 				continue
 			}
 
 			// 核心过滤：只保留支持请求模型的 provider
 			if requestedModel != "" && !provider.IsModelSupported(requestedModel) {
-				fmt.Printf("[INFO] Provider %s 不支持模型 %s，已跳过\n", provider.Name, requestedModel)
 				skippedCount++
 				continue
 			}
@@ -199,7 +193,7 @@ func (prs *ProviderRelayService) proxyHandler(kind string, endpoint string) gin.
 		if len(active) == 0 {
 			if requestedModel != "" {
 				c.JSON(http.StatusNotFound, gin.H{
-					"error": fmt.Sprintf("没有可用的 provider 支持模型 '%s'（已跳过 %d 个不兼容的 provider）", requestedModel, skippedCount),
+					"error": "没有可用的 provider 支持模型 '" + requestedModel + "'",
 				})
 			} else {
 				c.JSON(http.StatusNotFound, gin.H{"error": "no providers available"})
@@ -207,59 +201,38 @@ func (prs *ProviderRelayService) proxyHandler(kind string, endpoint string) gin.
 			return
 		}
 
-		fmt.Printf("[INFO] 找到 %d 个可用的 provider（已过滤 %d 个）：", len(active), skippedCount)
-		for _, p := range active {
-			fmt.Printf("%s ", p.Name)
-		}
-		fmt.Println()
-
 		query := flattenQuery(c.Request.URL.Query())
 		clientHeaders := cloneHeaders(c.Request.Header)
 
 		var lastErr error
 		attemptCount := 0
-		for i, provider := range active {
+		for _, provider := range active {
 			attemptCount++
 
 			effectiveModel := provider.GetEffectiveModel(requestedModel)
 
 			currentBodyBytes := bodyBytes
 			if effectiveModel != requestedModel && requestedModel != "" {
-				fmt.Printf("[INFO]   Provider %s 映射模型: %s -> %s\n", provider.Name, requestedModel, effectiveModel)
-
 				modifiedBody, err := ReplaceModelInRequestBody(bodyBytes, effectiveModel)
 				if err != nil {
-					fmt.Printf("[ERROR]   替换模型名失败: %v\n", err)
 					lastErr = err
 					continue
 				}
 				currentBodyBytes = modifiedBody
 			}
 
-			fmt.Printf("[INFO]   [%d/%d] Provider: %s | Model: %s\n",
-				i+1, len(active), provider.Name, effectiveModel)
-
-			startTime := time.Now()
 			ok, err := prs.forwardRequest(c, kind, provider, endpoint, query, clientHeaders, currentBodyBytes, isStream, effectiveModel)
-			duration := time.Since(startTime)
 
 			if ok {
-				fmt.Printf("[INFO]   ✓ 成功: %s | 耗时: %.2fs\n", provider.Name, duration.Seconds())
 				return
 			}
 
-			errorMsg := "未知错误"
-			if err != nil {
-				errorMsg = err.Error()
-			}
-			fmt.Printf("[WARN]   ✗ 失败: %s | 错误: %s | 耗时: %.2fs\n",
-				provider.Name, errorMsg, duration.Seconds())
 			lastErr = err
 		}
 
-		message := fmt.Sprintf("所有 %d 个 provider 均失败（共尝试 %d 次）", len(active), attemptCount)
+		message := "所有 provider 均失败"
 		if lastErr != nil {
-			message = fmt.Sprintf("%s: %s", message, lastErr.Error())
+			message = message + ": " + lastErr.Error()
 		}
 		xlog.Error("all is error")
 		c.JSON(http.StatusBadRequest, gin.H{"error": message})
@@ -306,7 +279,7 @@ func (prs *ProviderRelayService) forwardRequest(
 			"is_stream":           boolToInt(requestLog.IsStream),
 			"duration_sec":        requestLog.DurationSec,
 		}); err != nil {
-			fmt.Printf("写入 request_log 失败: %v\n", err)
+			log.Printf("写入 request_log 失败: %v", err)
 		}
 	}()
 
