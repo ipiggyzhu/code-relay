@@ -482,12 +482,6 @@ func startOfHour(t time.Time) time.Time {
 	return time.Date(y, m, d, t.Hour(), 0, 0, 0, t.Location())
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
 
 func isNoSuchTableErr(err error) bool {
 	if err == nil {

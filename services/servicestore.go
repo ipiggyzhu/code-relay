@@ -2,7 +2,6 @@ package services
 
 import (
 	"database/sql"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -99,7 +98,6 @@ func (cs *SuiStore) UpHotkey(id int, key int, modifier int) error {
         SET keycode = ?, modifiers = ? 
         WHERE id = ?
     `, key, modifier, id)
-	fmt.Println("🌂🌂🌂🌂🌂🌂", key, modifier)
 	return err
 }
 

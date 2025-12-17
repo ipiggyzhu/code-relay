@@ -96,6 +96,7 @@
         "titleClaude": "Edit Claude Code Common Config",
         "titleCodex": "Edit Codex Common Config",
         "hint": "This configuration will be merged into Claude Code or Codex settings when switching providers. All providers share this config.",
+        "placeholder": "{\n  \"KEY\": \"value\"\n}",
         "examples": "Examples",
         "exampleTelemetry": "Disable telemetry",
         "exampleTimeout": "Set MCP timeout (milliseconds)",
@@ -135,7 +136,8 @@
         "actions": {
           "cancel": "Cancel",
           "save": "Save",
-          "delete": "Delete"
+          "delete": "Delete",
+          "format": "Format"
         },
         "switch": {
           "on": "Active",

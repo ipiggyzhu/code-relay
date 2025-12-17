@@ -511,7 +511,6 @@ func CodexParseTokenUsageFromResponse(data string, usage *ReqeustLog) {
 	usage.OutputTokens += int(gjson.Get(data, "response.usage.output_tokens").Int())
 	usage.CacheReadTokens += int(gjson.Get(data, "response.usage.input_tokens_details.cached_tokens").Int())
 	usage.ReasoningTokens += int(gjson.Get(data, "response.usage.output_tokens_details.reasoning_tokens").Int())
-	fmt.Println("data ---->", data, fmt.Sprintf("%v", usage))
 }
 
 // ReplaceModelInRequestBody 替换请求体中的模型名

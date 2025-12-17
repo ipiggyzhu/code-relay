@@ -492,6 +492,7 @@
             class="config-textarea"
             rows="16"
             spellcheck="false"
+            :placeholder="t('components.main.commonConfig.placeholder')"
             @blur="validateCommonConfig"
           />
 
@@ -524,6 +525,9 @@
 
         <template #footer>
           <footer class="form-actions">
+            <BaseButton variant="outline" type="button" @click="formatCommonConfig">
+              {{ t('components.main.form.actions.format') }}
+            </BaseButton>
             <BaseButton variant="outline" type="button" @click="closeCommonConfigModal">
               {{ t('components.main.form.actions.cancel') }}
             </BaseButton>
@@ -1299,6 +1303,20 @@ const validateCommonConfig = () => {
   }
 }
 
+const formatCommonConfig = () => {
+  if (!commonConfigState.jsonText.trim()) {
+    return
+  }
+
+  try {
+    const parsed = JSON.parse(commonConfigState.jsonText)
+    commonConfigState.jsonText = JSON.stringify(parsed, null, 2)
+    commonConfigState.error = ''
+  } catch (e: any) {
+    commonConfigState.error = `JSON 格式错误: ${e.message}`
+  }
+}
+
 const saveCommonConfig = async () => {
   if (!validateCommonConfig()) {
     return
@@ -1407,17 +1425,22 @@ const onTabChange = (idx: number) => {
   font-size: 0.875rem;
   line-height: 1.6;
   color: var(--foreground);
-  background-color: var(--background-secondary);
-  border: 1px solid var(--border);
+  background-color: var(--background);
+  border: 1.5px solid var(--border);
   border-radius: 8px;
   resize: vertical;
   transition: all 0.2s;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.config-textarea:hover {
+  border-color: var(--foreground-muted);
 }
 
 .config-textarea:focus {
   outline: none;
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.1);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08), 0 0 0 3px rgba(10, 132, 255, 0.15);
 }
 
 .error-message {
