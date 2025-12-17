@@ -1242,9 +1242,9 @@ html.dark .ghost-icon:hover {
 
 
 .mac-modal-backdrop {
-  position: fixed;
+  position: absolute;
   inset: 0;
-  z-index: 2000;
+  /* No z-index needed - parent .mac-modal-root handles stacking */
   width: 100%;
   height: 100%;
 }
@@ -1259,9 +1259,9 @@ html.dark .ghost-icon:hover {
 /* .mac-modal-root is defined in BaseModal.vue (scoped) - DO NOT duplicate here */
 
 .mac-modal-wrapper {
-  position: fixed;
+  position: absolute;
   inset: 0;
-  z-index: 2001;
+  /* No z-index needed - parent .mac-modal-root handles stacking */
   overflow-y: auto;
   width: 100%;
   height: 100%;
