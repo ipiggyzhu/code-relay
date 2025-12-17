@@ -1268,19 +1268,26 @@ const confirmRemove = () => {
 const openCommonConfigModal = async () => {
   const kind = activeTab.value // 'claude' 或 'codex'
 
+  // 先设置标题
+  commonConfigState.title = activeTab.value === 'claude'
+    ? t('components.main.commonConfig.titleClaude')
+    : t('components.main.commonConfig.titleCodex')
+  commonConfigState.error = ''
+  commonConfigState.jsonText = ''
+
+  // 尝试加载配置
   try {
     const config = await GetCommonConfig(kind)
     commonConfigState.jsonText = Object.keys(config).length > 0
       ? JSON.stringify(config, null, 2)
       : ''
-    commonConfigState.title = activeTab.value === 'claude'
-      ? t('components.main.commonConfig.titleClaude')
-      : t('components.main.commonConfig.titleCodex')
-    commonConfigState.error = ''
-    commonConfigState.open = true
   } catch (error) {
     console.error('Failed to load common config:', error)
+    commonConfigState.error = `加载配置失败: ${error}`
   }
+
+  // 无论成功与否都打开模态框
+  commonConfigState.open = true
 }
 
 const closeCommonConfigModal = () => {
