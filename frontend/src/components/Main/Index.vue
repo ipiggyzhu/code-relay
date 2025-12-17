@@ -83,44 +83,7 @@
         class="contrib-wall"
         :aria-label="t('components.main.heatmap.ariaLabel')"
       >
-        <div class="contrib-legend">
-          <span>{{ t('components.main.heatmap.legendLow') }}</span>
-          <span v-for="level in 5" :key="level" :class="['legend-box', intensityClass(level - 1)]" />
-          <span>{{ t('components.main.heatmap.legendHigh') }}</span>
-        </div>
-
-        <div class="contrib-grid">
-          <div
-            v-for="(week, weekIndex) in usageHeatmap"
-            :key="weekIndex"
-            class="contrib-column"
-          >
-            <div
-              v-for="(day, dayIndex) in week"
-              :key="dayIndex"
-              class="contrib-cell"
-              :class="intensityClass(day.intensity)"
-              @mouseenter="showUsageTooltip(day, $event)"
-              @mousemove="showUsageTooltip(day, $event)"
-              @mouseleave="hideUsageTooltip"
-            />
-          </div>
-        </div>
-        <div
-          v-if="usageTooltip.visible"
-          ref="tooltipRef"
-          class="contrib-tooltip"
-          :class="usageTooltip.placement"
-          :style="{ left: `${usageTooltip.left}px`, top: `${usageTooltip.top}px` }"
-        >
-          <p class="tooltip-heading">{{ formattedTooltipLabel }}</p>
-          <ul class="tooltip-metrics">
-            <li v-for="metric in usageTooltipMetrics" :key="metric.key">
-              <span class="metric-label">{{ metric.label }}</span>
-              <span class="metric-value">{{ metric.value }}</span>
-            </li>
-          </ul>
-        </div>
+        <UsageChart :data="usageHeatmap" />
       </section>
 
       <section class="automation-section">
@@ -490,9 +453,11 @@
           <textarea
             v-model="commonConfigState.jsonText"
             class="config-textarea"
+            :class="{ 'is-loading': commonConfigState.loading }"
+            :disabled="commonConfigState.loading"
             rows="16"
             spellcheck="false"
-            :placeholder="t('components.main.commonConfig.placeholder')"
+            :placeholder="commonConfigState.loading ? t('components.main.commonConfig.loading') : t('components.main.commonConfig.placeholder')"
             @blur="validateCommonConfig"
           />
 
@@ -563,6 +528,7 @@ import lobeIcons from '../../icons/lobeIconMap'
 import BaseButton from '../common/BaseButton.vue'
 import BaseModal from '../common/BaseModal.vue'
 import BaseInput from '../common/BaseInput.vue'
+import UsageChart from './UsageChart.vue'
 import ModelWhitelistEditor from '../common/ModelWhitelistEditor.vue'
 import ModelMappingEditor from '../common/ModelMappingEditor.vue'
 import { LoadProviders, SaveProviders } from '../../../bindings/coderelay/services/providerservice'
@@ -590,7 +556,7 @@ const releaseApiUrl = 'https://api.github.com/repos/ipiggyzhu/code-relay/release
 const HEATMAP_DAYS = DEFAULT_HEATMAP_DAYS
 const usageHeatmap = ref<UsageHeatmapWeek[]>(generateFallbackUsageHeatmap(HEATMAP_DAYS))
 const heatmapContainerRef = ref<HTMLElement | null>(null)
-const tooltipRef = ref<HTMLElement | null>(null)
+
 const proxyStates = reactive<Record<ProviderTab, boolean>>({
   claude: false,
   codex: false,
@@ -624,19 +590,7 @@ const intensityClass = (value: number) => `gh-level-${value}`
 
 type TooltipPlacement = 'above' | 'below'
 
-const usageTooltip = reactive({
-  visible: false,
-  label: '',
-  dateKey: '',
-  left: 0,
-  top: 0,
-  placement: 'above' as TooltipPlacement,
-  requests: 0,
-  inputTokens: 0,
-  outputTokens: 0,
-  reasoningTokens: 0,
-  cost: 0,
-})
+
 
 const formatMetric = (value: number) => value.toLocaleString()
 
@@ -658,117 +612,15 @@ const currencyFormatter = computed(() =>
   })
 )
 
-const formattedTooltipLabel = computed(() => {
-  if (!usageTooltip.dateKey) return usageTooltip.label
-  const date = new Date(usageTooltip.dateKey)
-  if (Number.isNaN(date.getTime())) {
-    return usageTooltip.label
-  }
-  return tooltipDateFormatter.value.format(date)
-})
-
-const formattedTooltipAmount = computed(() =>
-  currencyFormatter.value.format(Math.max(usageTooltip.cost, 0))
-)
-
-const usageTooltipMetrics = computed(() => [
-  {
-    key: 'cost',
-    label: t('components.main.heatmap.metrics.cost'),
-    value: formattedTooltipAmount.value,
-  },
-  {
-    key: 'requests',
-    label: t('components.main.heatmap.metrics.requests'),
-    value: formatMetric(usageTooltip.requests),
-  },
-  {
-    key: 'inputTokens',
-    label: t('components.main.heatmap.metrics.inputTokens'),
-    value: formatMetric(usageTooltip.inputTokens),
-  },
-  {
-    key: 'outputTokens',
-    label: t('components.main.heatmap.metrics.outputTokens'),
-    value: formatMetric(usageTooltip.outputTokens),
-  },
-  {
-    key: 'reasoningTokens',
-    label: t('components.main.heatmap.metrics.reasoningTokens'),
-    value: formatMetric(usageTooltip.reasoningTokens),
-  },
-])
-
 const clamp = (value: number, min: number, max: number) => {
   if (max <= min) return min
   return Math.min(Math.max(value, min), max)
 }
 
-const TOOLTIP_DEFAULT_WIDTH = 220
-const TOOLTIP_DEFAULT_HEIGHT = 120
-const TOOLTIP_VERTICAL_OFFSET = 12
-const TOOLTIP_HORIZONTAL_MARGIN = 20
-const TOOLTIP_VERTICAL_MARGIN = 24
 
-const getTooltipSize = () => {
-  const rect = tooltipRef.value?.getBoundingClientRect()
-  return {
-    width: rect?.width ?? TOOLTIP_DEFAULT_WIDTH,
-    height: rect?.height ?? TOOLTIP_DEFAULT_HEIGHT,
-  }
-}
 
-const viewportSize = () => {
-  if (typeof window !== 'undefined') {
-    return { width: window.innerWidth, height: window.innerHeight }
-  }
-  if (typeof document !== 'undefined' && document.documentElement) {
-    return {
-      width: document.documentElement.clientWidth,
-      height: document.documentElement.clientHeight,
-    }
-  }
-  return {
-    width: heatmapContainerRef.value?.clientWidth ?? 0,
-    height: heatmapContainerRef.value?.clientHeight ?? 0,
-  }
-}
 
-const showUsageTooltip = (day: UsageHeatmapDay, event: MouseEvent) => {
-  const target = event.currentTarget as HTMLElement | null
-  const cellRect = target?.getBoundingClientRect()
-  if (!cellRect) return
-  usageTooltip.label = day.label
-  usageTooltip.dateKey = day.dateKey
-  usageTooltip.requests = day.requests
-  usageTooltip.inputTokens = day.inputTokens
-  usageTooltip.outputTokens = day.outputTokens
-  usageTooltip.reasoningTokens = day.reasoningTokens
-  usageTooltip.cost = day.cost
-  const { width: tooltipWidth, height: tooltipHeight } = getTooltipSize()
-  const { width: viewportWidth, height: viewportHeight } = viewportSize()
-  const centerX = cellRect.left + cellRect.width / 2
-  const halfWidth = tooltipWidth / 2
-  const minLeft = TOOLTIP_HORIZONTAL_MARGIN + halfWidth
-  const maxLeft = viewportWidth > 0 ? viewportWidth - halfWidth - TOOLTIP_HORIZONTAL_MARGIN : centerX
-  usageTooltip.left = clamp(centerX, minLeft, maxLeft)
 
-  const anchorTop = cellRect.top
-  const anchorBottom = cellRect.bottom
-  const canShowAbove = anchorTop - tooltipHeight - TOOLTIP_VERTICAL_OFFSET >= TOOLTIP_VERTICAL_MARGIN
-  const viewportBottomLimit = viewportHeight > 0 ? viewportHeight - tooltipHeight - TOOLTIP_VERTICAL_MARGIN : anchorBottom
-  const shouldPlaceBelow = !canShowAbove
-  usageTooltip.placement = shouldPlaceBelow ? 'below' : 'above'
-  const desiredTop = shouldPlaceBelow
-    ? anchorBottom + TOOLTIP_VERTICAL_OFFSET
-    : anchorTop - tooltipHeight - TOOLTIP_VERTICAL_OFFSET
-  usageTooltip.top = clamp(desiredTop, TOOLTIP_VERTICAL_MARGIN, viewportBottomLimit)
-  usageTooltip.visible = true
-}
-
-const hideUsageTooltip = () => {
-  usageTooltip.visible = false
-}
 
 const loadAppSettings = async () => {
   try {
@@ -1151,6 +1003,7 @@ const commonConfigState = reactive({
   title: '',
   jsonText: '',
   error: '',
+  loading: false,
 })
 
 const openCreateModal = () => {
@@ -1266,6 +1119,7 @@ const confirmRemove = () => {
 
 // 通用配置相关函数
 const openCommonConfigModal = async () => {
+  console.log('openCommonConfigModal called')
   const kind = activeTab.value // 'claude' 或 'codex'
 
   // 先设置标题
@@ -1274,24 +1128,41 @@ const openCommonConfigModal = async () => {
     : t('components.main.commonConfig.titleCodex')
   commonConfigState.error = ''
   commonConfigState.jsonText = ''
+  
+  // 立即打开模态框并显示加载状态
+  commonConfigState.open = true
+  commonConfigState.loading = true
 
-  // 尝试加载配置
+  // 尝试加载配置，增加超时保护
   try {
-    const config = await GetCommonConfig(kind)
+    console.log('Fetching common config for', kind)
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Request timeout')), 5000)
+    )
+    
+    const config = await Promise.race([
+      GetCommonConfig(kind),
+      timeoutPromise
+    ]) as Record<string, any>
+
+    console.log('Config loaded', config)
     commonConfigState.jsonText = Object.keys(config).length > 0
       ? JSON.stringify(config, null, 2)
       : ''
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to load common config:', error)
-    commonConfigState.error = `加载配置失败: ${error}`
+    commonConfigState.error = `加载配置失败: ${error.message || error}`
+  } finally {
+    commonConfigState.loading = false
   }
-
-  // 无论成功与否都打开模态框
-  commonConfigState.open = true
 }
 
 const closeCommonConfigModal = () => {
+  console.log('closeCommonConfigModal called')
   commonConfigState.open = false
+  // 重置状态防止下次打开残留
+  commonConfigState.loading = false
+  commonConfigState.error = ''
 }
 
 const validateCommonConfig = () => {
@@ -1341,16 +1212,31 @@ const saveCommonConfig = async () => {
     }
   }
 
-  try {
-    await SaveCommonConfig(kind, config)
-    closeCommonConfigModal()
+  commonConfigState.loading = true
+  commonConfigState.error = ''
 
-    // 重新启用代理以应用新配置
+  try {
+    // 1. 保存配置
+    await SaveCommonConfig(kind, config)
+
+    // 2. 如果代理已启用，则重启代理以应用新配置
     if (activeProxyState.value) {
-      await enableProxy(kind)
+      // 先尝试禁用再启用，或者直接启用（取决于 enableProxy 实现，假设它能处理重启）
+      // 安全起见，这里捕获代理重启的错误，但不阻止配置保存成功的提示
+      try {
+        await enableProxy(kind)
+      } catch (proxyError: any) {
+        throw new Error(`配置已保存，但相关服务重启失败: ${proxyError.message || proxyError}`)
+      }
     }
+
+    // 3. 一切顺利，关闭窗口
+    closeCommonConfigModal()
   } catch (error: any) {
-    commonConfigState.error = `保存失败: ${error}`
+    console.error('Save failed:', error)
+    commonConfigState.error = `保存失败: ${error.message || error}`
+  } finally {
+    commonConfigState.loading = false
   }
 }
 
@@ -1429,7 +1315,8 @@ const onTabChange = (idx: number) => {
   width: 100%;
   min-height: 280px;
   padding: 12px;
-  font-family: 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
+  font-family: inherit; /* Match main interface */
+  font-weight: normal;  /* Ensure no bolding */
   font-size: 0.875rem;
   line-height: 1.6;
   color: var(--mac-text);
@@ -1451,6 +1338,11 @@ const onTabChange = (idx: number) => {
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08), 0 0 0 3px rgba(10, 132, 255, 0.15);
 }
 
+.config-textarea.is-loading {
+  opacity: 0.6;
+  cursor: wait;
+}
+
 .error-message {
   padding: 8px 12px;
   background-color: rgba(239, 68, 68, 0.1);
@@ -1458,7 +1350,7 @@ const onTabChange = (idx: number) => {
   border-radius: 6px;
   color: #ff3b30;
   font-size: 0.8125rem;
-  font-family: 'SF Mono', 'Menlo', 'Monaco', monospace;
+  font-family: inherit;
 }
 
 .config-examples {
@@ -1491,7 +1383,7 @@ const onTabChange = (idx: number) => {
   background-color: var(--mac-surface);
   border: 1px solid var(--mac-border);
   border-radius: 4px;
-  font-family: 'SF Mono', 'Menlo', 'Monaco', monospace;
+  font-family: inherit;
   font-size: 0.75rem;
   color: var(--mac-accent);
 }

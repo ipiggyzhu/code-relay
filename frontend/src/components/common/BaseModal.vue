@@ -59,6 +59,15 @@ watch(() => props.open, (isOpen) => {
 </script>
 
 <style scoped>
+.mac-modal-root {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .modal-enter-active,
 .modal-leave-active {
   transition: opacity 0.2s ease;

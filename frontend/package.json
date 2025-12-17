@@ -1,7 +1,7 @@
 {
   "name": "frontend",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,8 +14,10 @@
     "@lobehub/icons-static-svg": "^1.73.0",
     "@wailsio/runtime": "^3.0.0-alpha.72",
     "chart.js": "^4.5.1",
+    "echarts": "^6.0.0",
     "vue": "^3.5.23",
     "vue-chartjs": "^5.3.3",
+    "vue-echarts": "^8.0.1",
     "vue-i18n": "^11.1.12",
     "vue-router": "^4.6.3"
   },
