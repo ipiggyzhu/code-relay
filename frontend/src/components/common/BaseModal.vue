@@ -5,12 +5,12 @@
       <div class="mac-modal-wrapper">
         <TransitionChild
           as="template"
-          enter="ease-out duration-200"
-          enter-from="opacity-0 translate-y-4"
-          enter-to="opacity-100 translate-y-0"
-          leave="ease-in duration-150"
-          leave-from="opacity-100 translate-y-0"
-          leave-to="opacity-0 translate-y-4"
+          enter="mac-modal-enter-active"
+          enter-from="mac-modal-enter-from"
+          enter-to="mac-modal-enter-to"
+          leave="mac-modal-leave-active"
+          leave-from="mac-modal-leave-from"
+          leave-to="mac-modal-leave-to"
         >
           <DialogPanel :class="['mac-modal', variantClass]">
             <header class="mac-modal-header">

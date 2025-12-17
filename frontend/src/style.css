@@ -1314,6 +1314,40 @@ html.dark .ghost-icon:hover {
   flex: 1;
 }
 
+/* Modal Transitions */
+.mac-modal-enter-active,
+.mac-modal-leave-active {
+  transition: all 0.2s ease-out;
+}
+
+.mac-modal-enter-from,
+.mac-modal-leave-to {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+.mac-modal-enter-to,
+.mac-modal-leave-from {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.mac-backdrop-enter-active,
+.mac-backdrop-leave-active {
+  transition: opacity 0.2s ease-out;
+}
+
+.mac-backdrop-enter-from,
+.mac-backdrop-leave-to {
+  opacity: 0;
+}
+
+.mac-backdrop-enter-to,
+.mac-backdrop-leave-from {
+  opacity: 1;
+}
+
+
 .form-field span {
   font-size: 0.85rem;
   color: var(--mac-text-secondary);
