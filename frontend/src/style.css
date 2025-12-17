@@ -322,7 +322,10 @@ html.dark .mac-sidebar-item:hover {
 }
 
 .contrib-hero h1 {
-  font-size: clamp(2.5rem, 6vw, 3.5rem);
+  font-family: var(--mac-font);
+  font-size: clamp(2rem, 4vw, 2.5rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
   margin-bottom: 12px;
 }
 
@@ -1296,7 +1299,14 @@ html.dark .ghost-icon:hover {
 }
 
 .mac-modal-scrollable {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
+}
+
+.form-actions.mac-modal-footer {
+  padding: 24px;
+  /* Default is flex-end (right aligned), so we remove justify-content: center */
 }
 
 .mac-modal-title {

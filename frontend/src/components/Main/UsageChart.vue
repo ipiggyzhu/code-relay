@@ -227,7 +227,7 @@ const chartOption = computed(() => {
 <style scoped>
 .usage-chart-container {
   width: 100%;
-  height: 100%;
+  height: 320px; /* Exact height to prevent layout collapse */
   padding-top: 1rem;
   display: flex;
   flex-direction: column;

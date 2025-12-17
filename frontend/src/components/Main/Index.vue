@@ -489,7 +489,7 @@
         </div>
 
         <template #footer>
-          <footer class="form-actions">
+          <footer class="form-actions mac-modal-footer">
             <BaseButton variant="outline" type="button" @click="formatCommonConfig">
               {{ t('components.main.form.actions.format') }}
             </BaseButton>
