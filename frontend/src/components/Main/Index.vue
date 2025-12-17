@@ -1413,20 +1413,21 @@ const onTabChange = (idx: number) => {
 }
 
 .editor-hint {
-  color: var(--foreground-muted);
+  color: var(--mac-text-secondary);
   font-size: 0.875rem;
   line-height: 1.5;
 }
 
 .config-textarea {
   width: 100%;
+  min-height: 280px;
   padding: 12px;
   font-family: 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
   font-size: 0.875rem;
   line-height: 1.6;
-  color: var(--foreground);
-  background-color: var(--background);
-  border: 1.5px solid var(--border);
+  color: var(--mac-text);
+  background-color: var(--mac-surface-strong);
+  border: 1.5px solid var(--mac-border);
   border-radius: 8px;
   resize: vertical;
   transition: all 0.2s;
@@ -1434,28 +1435,28 @@ const onTabChange = (idx: number) => {
 }
 
 .config-textarea:hover {
-  border-color: var(--foreground-muted);
+  border-color: var(--mac-text-secondary);
 }
 
 .config-textarea:focus {
   outline: none;
-  border-color: var(--accent-primary);
+  border-color: var(--mac-accent);
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08), 0 0 0 3px rgba(10, 132, 255, 0.15);
 }
 
 .error-message {
   padding: 8px 12px;
   background-color: rgba(239, 68, 68, 0.1);
-  border: 1px solid var(--error);
+  border: 1px solid #ff3b30;
   border-radius: 6px;
-  color: var(--error);
+  color: #ff3b30;
   font-size: 0.8125rem;
   font-family: 'SF Mono', 'Menlo', 'Monaco', monospace;
 }
 
 .config-examples {
   padding: 12px;
-  background-color: var(--background-secondary);
+  background-color: var(--mac-surface-strong);
   border-radius: 8px;
   font-size: 0.8125rem;
 }
@@ -1463,14 +1464,14 @@ const onTabChange = (idx: number) => {
 .examples-title {
   font-weight: 500;
   margin-bottom: 8px;
-  color: var(--foreground);
+  color: var(--mac-text);
 }
 
 .examples-list {
   margin: 0;
   padding-left: 20px;
   list-style: disc;
-  color: var(--foreground-muted);
+  color: var(--mac-text-secondary);
 }
 
 .examples-list li {
@@ -1480,12 +1481,12 @@ const onTabChange = (idx: number) => {
 
 .examples-list code {
   padding: 2px 6px;
-  background-color: var(--background);
-  border: 1px solid var(--border);
+  background-color: var(--mac-surface);
+  border: 1px solid var(--mac-border);
   border-radius: 4px;
   font-family: 'SF Mono', 'Menlo', 'Monaco', monospace;
   font-size: 0.75rem;
-  color: var(--accent-primary);
+  color: var(--mac-accent);
 }
 
 </style>
