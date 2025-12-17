@@ -12,7 +12,7 @@ const (
 	claudeSettingsDir      = ".claude"
 	claudeSettingsFileName = "settings.json"
 	claudeBackupFileName   = "cc-studio.back.settings.json"
-	claudeAuthTokenValue   = "code-switch"
+	claudeAuthTokenValue   = "code-relay"
 )
 
 type ClaudeProxyStatus struct {
@@ -82,18 +82,33 @@ func (css *ClaudeSettingsService) EnableProxy() error {
 		return err
 	}
 
-	// 构建基础配置
-	settings := map[string]interface{}{
-		"env": map[string]string{
-			"ANTHROPIC_AUTH_TOKEN": claudeAuthTokenValue,
-			"ANTHROPIC_BASE_URL":   css.baseURL(),
-		},
-	}
-
-	// 合并通用配置
+	// 构建配置：通用配置放到根级别
+	settings := make(map[string]interface{})
 	for key, value := range commonConfig {
 		settings[key] = value
 	}
+
+	// 处理 env：合并用户配置和代理配置
+	envMap := make(map[string]interface{})
+
+	// 如果用户通用配置中有 env，先复制过来
+	if existingEnv, ok := settings["env"]; ok {
+		switch v := existingEnv.(type) {
+		case map[string]interface{}:
+			for k, val := range v {
+				envMap[k] = val
+			}
+		case map[string]string:
+			for k, val := range v {
+				envMap[k] = val
+			}
+		}
+	}
+
+	// 设置代理必需的配置（覆盖同名键）
+	envMap["ANTHROPIC_AUTH_TOKEN"] = claudeAuthTokenValue
+	envMap["ANTHROPIC_BASE_URL"] = css.baseURL()
+	settings["env"] = envMap
 
 	// 序列化并写入
 	payload, err := json.MarshalIndent(settings, "", "  ")

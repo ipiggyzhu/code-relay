@@ -60,6 +60,7 @@ func (as *AutoStartService) Disable() error {
 func (as *AutoStartService) isEnabledWindows() (bool, error) {
 	key := `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
 	cmd := exec.Command("reg", "query", key, "/v", "CodeRelay")
+	hideWindow(cmd)
 	err := cmd.Run()
 	return err == nil, nil
 }
@@ -72,6 +73,7 @@ func (as *AutoStartService) enableWindows() error {
 
 	key := `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
 	cmd := exec.Command("reg", "add", key, "/v", "CodeRelay", "/t", "REG_SZ", "/d", exePath, "/f")
+	hideWindow(cmd)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to add registry key: %w", err)
 	}
@@ -81,6 +83,7 @@ func (as *AutoStartService) enableWindows() error {
 func (as *AutoStartService) disableWindows() error {
 	key := `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
 	cmd := exec.Command("reg", "delete", key, "/v", "CodeRelay", "/f")
+	hideWindow(cmd)
 	// 忽略不存在的错误
 	_ = cmd.Run()
 	return nil

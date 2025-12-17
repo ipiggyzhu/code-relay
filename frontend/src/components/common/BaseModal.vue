@@ -1,8 +1,8 @@
 <template>
   <TransitionRoot as="template" :show="open">
-    <Dialog as="div" class="modal-backdrop" :open="open" @close="$emit('close')">
-      <div class="modal-overlay" aria-hidden="true"></div>
-      <div class="modal-wrapper">
+    <Dialog as="div" class="mac-modal-backdrop" :open="open" @close="$emit('close')">
+      <div class="mac-modal-overlay" aria-hidden="true"></div>
+      <div class="mac-modal-wrapper">
         <TransitionChild
           as="template"
           enter="ease-out duration-200"
@@ -12,14 +12,15 @@
           leave-from="opacity-100 translate-y-0"
           leave-to="opacity-0 translate-y-4"
         >
-          <DialogPanel :class="['modal', variantClass]">
-            <header class="modal-header">
-              <DialogTitle class="modal-title">{{ title }}</DialogTitle>
+          <DialogPanel :class="['mac-modal', variantClass]">
+            <header class="mac-modal-header">
+              <DialogTitle class="mac-modal-title">{{ title }}</DialogTitle>
               <button class="ghost-icon" aria-label="Close" @click="$emit('close')">✕</button>
             </header>
-            <div class="modal-body modal-scrollable">
+            <div class="mac-modal-body mac-modal-scrollable">
               <slot />
             </div>
+            <slot name="footer" />
           </DialogPanel>
         </TransitionChild>
       </div>

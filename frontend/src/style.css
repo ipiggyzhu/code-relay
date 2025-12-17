@@ -153,7 +153,7 @@ html.dark .mac-sidebar-item:hover {
   overflow: hidden;
 }
 
-.mac-panel .mac-list-row + .mac-list-row {
+.mac-panel .mac-list-row+.mac-list-row {
   border-top: 1px solid var(--mac-divider);
 }
 
@@ -224,11 +224,11 @@ html.dark .mac-sidebar-item:hover {
   transition: transform 0.2s ease;
 }
 
-.mac-switch input:checked + span {
+.mac-switch input:checked+span {
   background: var(--mac-accent);
 }
 
-.mac-switch input:checked + span::after {
+.mac-switch input:checked+span::after {
   transform: translateX(18px);
 }
 
@@ -245,7 +245,7 @@ html.dark .mac-sidebar-item:hover {
   left: 3px;
 }
 
-.mac-switch.sm input:checked + span::after {
+.mac-switch.sm input:checked+span::after {
   transform: translateX(16px);
 }
 
@@ -366,15 +366,15 @@ html.dark .mac-sidebar-item:hover {
 }
 
 .contrib-grid {
-	position: relative;
-	display: flex;
-	gap: 4px;
-	overflow-x: auto;
-	padding-bottom: 8px;
-	scrollbar-width: none;
-	-ms-overflow-style: none;
-	width: 100%;
-	justify-content: space-between;
+  position: relative;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  width: 100%;
+  justify-content: space-between;
 }
 
 .contrib-grid::-webkit-scrollbar {
@@ -382,10 +382,10 @@ html.dark .mac-sidebar-item:hover {
 }
 
 .contrib-column {
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-	flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
 }
 
 .contrib-cell {
@@ -464,29 +464,46 @@ html.dark .mac-sidebar-item:hover {
   background: var(--contrib-base);
 }
 
-.gh-level-0 { background: var(--contrib-base); }
-.gh-level-1 { background: var(--contrib-level-1); }
-.gh-level-2 { background: var(--contrib-level-2); }
-.gh-level-3 { background: var(--contrib-level-3); }
-.gh-level-4 { background: var(--contrib-level-4); }
+.gh-level-0 {
+  background: var(--contrib-base);
+}
 
-.contrib-cell.gh-level-0 { opacity: 0.4; }
+.gh-level-1 {
+  background: var(--contrib-level-1);
+}
+
+.gh-level-2 {
+  background: var(--contrib-level-2);
+}
+
+.gh-level-3 {
+  background: var(--contrib-level-3);
+}
+
+.gh-level-4 {
+  background: var(--contrib-level-4);
+}
+
+.contrib-cell.gh-level-0 {
+  opacity: 0.4;
+}
 
 @media (max-width: 640px) {
-	.contrib-wall {
-		padding: 24px;
-	}
+  .contrib-wall {
+    padding: 24px;
+  }
 
-	.contrib-grid {
-		gap: 3px;
-	}
+  .contrib-grid {
+    gap: 3px;
+  }
 
-	.contrib-cell,
-	.legend-box {
-		width: 12px;
-		height: 12px;
-	}
+  .contrib-cell,
+  .legend-box {
+    width: 12px;
+    height: 12px;
+  }
 }
+
 .automation-section {
   display: flex;
   flex-direction: column;
@@ -521,7 +538,7 @@ html.dark .mac-sidebar-item:hover {
   margin: 0;
 }
 
-.section-header > .tab-group {
+.section-header>.tab-group {
   align-self: flex-start;
 }
 
@@ -573,10 +590,12 @@ html.dark .mac-sidebar-item:hover {
     transform: translateY(0);
     box-shadow: 0 0 0 rgba(14, 165, 233, 0.4);
   }
+
   50% {
     transform: translateY(-2px);
     box-shadow: 0 0 12px rgba(14, 165, 233, 0.65);
   }
+
   100% {
     transform: translateY(0);
     box-shadow: 0 0 0 rgba(14, 165, 233, 0.4);
@@ -760,14 +779,38 @@ html.dark .mac-sidebar-item:hover {
   white-space: nowrap;
 }
 
-.logs-table .col-time { width: 180px; }
-.logs-table .col-platform { width: 120px; }
-.logs-table .col-provider { width: 170px; }
-.logs-table .col-model { width: 150px; }
-.logs-table .col-http { width: 90px; }
-.logs-table .col-stream { width: 120px; }
-.logs-table .col-duration { width: 120px; }
-.logs-table .col-tokens { width: 340px; white-space: normal; }
+.logs-table .col-time {
+  width: 180px;
+}
+
+.logs-table .col-platform {
+  width: 120px;
+}
+
+.logs-table .col-provider {
+  width: 170px;
+}
+
+.logs-table .col-model {
+  width: 150px;
+}
+
+.logs-table .col-http {
+  width: 90px;
+}
+
+.logs-table .col-stream {
+  width: 120px;
+}
+
+.logs-table .col-duration {
+  width: 120px;
+}
+
+.logs-table .col-tokens {
+  width: 340px;
+  white-space: normal;
+}
 
 .logs-table td.http-success {
   color: #4ade80;
@@ -837,6 +880,16 @@ html.dark .mac-sidebar-item:hover {
 
 .stream-tag.off {
   background: rgba(148, 163, 184, 0.35);
+  color: #0f172a;
+}
+
+.config-textarea {
+  width: 100%;
+  padding: 12px;
+  min-height: 300px;
+  font-family: 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
+  font-size: 0.78rem;
+  font-weight: 600;
   color: #0f172a;
 }
 
@@ -1184,7 +1237,8 @@ html.dark .ghost-icon:hover {
 }
 
 
-.modal-backdrop {
+
+.mac-modal-backdrop {
   position: fixed;
   inset: 0;
   z-index: 2000;
@@ -1192,14 +1246,14 @@ html.dark .ghost-icon:hover {
   height: 100%;
 }
 
-.modal-overlay {
+.mac-modal-overlay {
   position: absolute;
   inset: 0;
   background: rgba(15, 23, 42, 0.45);
   backdrop-filter: blur(6px);
 }
 
-.modal-wrapper {
+.mac-modal-wrapper {
   position: relative;
   z-index: 1;
   min-height: 100vh;
@@ -1210,7 +1264,7 @@ html.dark .ghost-icon:hover {
   justify-content: center;
 }
 
-.modal {
+.mac-modal {
   width: min(720px, 95vw);
   max-height: 90vh;
   background: var(--mac-surface);
@@ -1222,7 +1276,7 @@ html.dark .ghost-icon:hover {
   overflow: hidden;
 }
 
-.modal-header {
+.mac-modal-header {
   padding: 24px 24px 12px;
   display: flex;
   justify-content: space-between;
@@ -1230,20 +1284,21 @@ html.dark .ghost-icon:hover {
   gap: 12px;
 }
 
-.modal-body {
+.mac-modal-body {
   padding: 0 24px 24px;
 }
 
-.modal-scrollable {
+.mac-modal-scrollable {
   overflow-y: auto;
 }
 
-.modal-title {
+.mac-modal-title {
   margin: 0;
   font-size: 1.1rem;
   font-weight: 600;
   color: var(--mac-text);
 }
+
 
 .vendor-form {
   display: flex;
@@ -1458,6 +1513,7 @@ html.dark .btn-ghost:focus-visible {
   font-size: 0.85rem;
   color: var(--mac-text-secondary);
 }
+
 .icon-select .icon-preview,
 .icon-option .icon-preview {
   display: inline-flex;
@@ -1481,9 +1537,11 @@ html.dark .btn-ghost:focus-visible {
 .icon-option.selected {
   background: color-mix(in srgb, var(--mac-accent) 12%, transparent);
 }
+
 .icon-select-label {
   font-weight: 500;
 }
+
 .confirm-modal {
   max-width: 420px;
 }
@@ -1499,6 +1557,7 @@ html.dark .btn-ghost:focus-visible {
   padding: 0;
   width: 100%;
 }
+
 .general-page {
   width: 100%;
   margin: 0;
