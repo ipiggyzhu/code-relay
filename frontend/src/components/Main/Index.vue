@@ -163,7 +163,15 @@
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path
-                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+                d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"
                 fill="none"
                 stroke="currentColor"
                 stroke-width="1.5"
@@ -281,14 +289,21 @@
             <button class="ghost-icon" @click="configure(card)">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path
-                  d="M11.983 2.25a1.125 1.125 0 011.077.81l.563 2.101a7.482 7.482 0 012.326 1.343l2.08-.621a1.125 1.125 0 011.356.651l1.313 3.207a1.125 1.125 0 01-.442 1.339l-1.86 1.205a7.418 7.418 0 010 2.686l1.86 1.205a1.125 1.125 0 01.442 1.339l-1.313 3.207a1.125 1.125 0 01-1.356.651l-2.08-.621a7.482 7.482 0 01-2.326 1.343l-.563 2.101a1.125 1.125 0 01-1.077.81h-2.634a1.125 1.125 0 01-1.077-.81l-.563-2.101a7.482 7.482 0 01-2.326-1.343l-2.08.621a1.125 1.125 0 01-1.356-.651l-1.313-3.207a1.125 1.125 0 01.442-1.339l1.86-1.205a7.418 7.418 0 010-2.686l-1.86-1.205a1.125 1.125 0 01-.442-1.339l1.313-3.207a1.125 1.125 0 011.356-.651l2.08.621a7.482 7.482 0 012.326-1.343l.563-2.101a1.125 1.125 0 011.077-.81h2.634z"
-                  fill="none"
+                  d="M12 15a3 3 0 100-6 3 3 0 000 6z"
                   stroke="currentColor"
                   stroke-width="1.5"
                   stroke-linecap="round"
                   stroke-linejoin="round"
+                  fill="none"
                 />
-                <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path
+                  d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  fill="none"
+                />
               </svg>
             </button>
             <button class="ghost-icon" @click="requestRemove(card)">
@@ -325,21 +340,48 @@
                   />
                 </label>
 
-                <label class="form-field">
+                <div class="form-field">
                   <span class="label-row">
                     {{ t('components.main.form.labels.apiUrl') }}
                     <span v-if="modalState.errors.apiUrl" class="field-error">
                       {{ modalState.errors.apiUrl }}
                     </span>
                   </span>
-                  <BaseInput
-                    v-model="modalState.form.apiUrl"
-                    type="text"
-                    :placeholder="t('components.main.form.placeholders.apiUrl')"
-                    required
-                    :class="{ 'has-error': !!modalState.errors.apiUrl }"
-                  />
-                </label>
+                  <div class="api-url-wrapper" :class="{ 'has-error': !!modalState.errors.apiUrl }">
+                    <input
+                      v-model="modalState.form.apiUrl"
+                      type="text"
+                      class="api-url-input"
+                      :placeholder="t('components.main.form.placeholders.apiUrl')"
+                      required
+                    />
+                    <button
+                      type="button"
+                      class="speed-test-btn-inline"
+                      :disabled="!canTestSpeed"
+                      :title="t('components.main.speedTest.buttonTitle')"
+                      @click="testApiSpeed"
+                    >
+                      <svg v-if="modalState.speedTest.testing" class="speed-test-spinner" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="31.4 31.4" />
+                      </svg>
+                      <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div v-if="modalState.speedTest.latency !== null || modalState.speedTest.error" class="speed-test-result-inline">
+                    <template v-if="modalState.speedTest.error">
+                      <span class="speed-error">{{ modalState.speedTest.error }}</span>
+                    </template>
+                    <template v-else>
+                      <span class="speed-latency" :class="getSpeedTestColorClass(modalState.speedTest.statusCode!)">
+                        {{ modalState.speedTest.latency }}ms
+                      </span>
+                      <span class="speed-status">{{ t('components.main.speedTest.statusCode') }}: {{ modalState.speedTest.statusCode }}</span>
+                    </template>
+                  </div>
+                </div>
 
                 <label class="form-field">
                   <span>{{ t('components.main.form.labels.officialSite') }}</span>
@@ -442,65 +484,35 @@
       <!-- 通用配置编辑弹窗 -->
       <BaseModal
         :open="commonConfigState.open"
-        :title="commonConfigState.title"
+        :title="activeTab === 'claude' ? t('components.main.commonConfig.titleClaude') : t('components.main.commonConfig.titleCodex')"
         @close="closeCommonConfigModal"
       >
-        <div class="common-config-editor">
-          <p class="editor-hint">
-            {{ t('components.main.commonConfig.hint') }}
-          </p>
-
-          <textarea
-            v-model="commonConfigState.jsonText"
-            class="config-textarea"
-            :class="{ 'is-loading': commonConfigState.loading }"
-            :disabled="commonConfigState.loading"
-            rows="16"
-            spellcheck="false"
-            :placeholder="commonConfigState.loading ? t('components.main.commonConfig.loading') : t('components.main.commonConfig.placeholder')"
-            @blur="validateCommonConfig"
-          />
-
-          <p v-if="commonConfigState.error" class="error-message">
+        <form class="vendor-form" @submit.prevent="saveCommonConfig">
+          <label class="form-field">
+            <span>{{ activeTab === 'claude' ? t('components.main.commonConfig.hintClaude') : t('components.main.commonConfig.hintCodex') }}</span>
+            <textarea
+              v-model="commonConfigState.jsonText"
+              class="config-textarea"
+              rows="10"
+              spellcheck="false"
+              :placeholder="t('components.main.commonConfig.placeholder')"
+            />
+          </label>
+          <p v-if="commonConfigState.error" class="field-error">
             {{ commonConfigState.error }}
           </p>
-
-          <div class="config-examples">
-            <p class="examples-title">{{ t('components.main.commonConfig.examples') }}</p>
-            <ul class="examples-list">
-              <template v-if="activeTab === 'claude'">
-                <li>
-                  <code>"DISABLE_TELEMETRY": "1"</code> - {{ t('components.main.commonConfig.exampleTelemetry') }}
-                </li>
-                <li>
-                  <code>"MCP_TIMEOUT": "60000"</code> - {{ t('components.main.commonConfig.exampleTimeout') }}
-                </li>
-                <li>
-                  <code>"claudeCode.useTerminal": true</code> - {{ t('components.main.commonConfig.exampleTerminal') }}
-                </li>
-              </template>
-              <template v-else>
-                <li>
-                  <code>"CODEX_TIMEOUT": "30000"</code> - {{ t('components.main.commonConfig.exampleCodexTimeout') }}
-                </li>
-              </template>
-            </ul>
-          </div>
-        </div>
-
-        <template #footer>
-          <footer class="form-actions mac-modal-footer">
+          <footer class="form-actions">
             <BaseButton variant="outline" type="button" @click="formatCommonConfig">
               {{ t('components.main.form.actions.format') }}
             </BaseButton>
             <BaseButton variant="outline" type="button" @click="closeCommonConfigModal">
               {{ t('components.main.form.actions.cancel') }}
             </BaseButton>
-            <BaseButton type="button" @click="saveCommonConfig">
+            <BaseButton type="submit">
               {{ t('components.main.form.actions.save') }}
             </BaseButton>
           </footer>
-        </template>
+        </form>
       </BaseModal>
 
       <footer v-if="appVersion" class="main-version">
@@ -532,12 +544,13 @@ import UsageChart from './UsageChart.vue'
 import ModelWhitelistEditor from '../common/ModelWhitelistEditor.vue'
 import ModelMappingEditor from '../common/ModelMappingEditor.vue'
 import { LoadProviders, SaveProviders } from '../../../bindings/coderelay/services/providerservice'
-import { GetCommonConfig, SaveCommonConfig } from '../../../bindings/coderelay/services/commonconfigservice'
+import { GetCommonConfigJSON, SaveCommonConfigJSON } from '../../../bindings/coderelay/services/commonconfigservice'
 import { fetchProxyStatus, enableProxy, disableProxy } from '../../services/claudeSettings'
 import { fetchHeatmapStats, fetchProviderDailyStats, type ProviderDailyStat } from '../../services/logs'
 import { fetchCurrentVersion } from '../../services/version'
 import { fetchAppSettings, type AppSettings } from '../../services/appSettings'
 import { getCurrentTheme, setTheme, type ThemeMode } from '../../utils/ThemeManager'
+import { getSpeedTestColorClass } from '../../utils/speedTest'
 import { useRouter } from 'vue-router'
 
 const { t, locale } = useI18n()
@@ -992,6 +1005,12 @@ const modalState = reactive({
   errors: {
     apiUrl: '',
   },
+  speedTest: {
+    testing: false,
+    latency: null as number | null,
+    statusCode: null as number | null,
+    error: null as string | null,
+  },
 })
 
 const editingCard = ref<AutomationCard | null>(null)
@@ -1000,10 +1019,66 @@ const confirmState = reactive({ open: false, card: null as AutomationCard | null
 // 通用配置状态
 const commonConfigState = reactive({
   open: false,
-  title: '',
   jsonText: '',
   error: '',
-  loading: false,
+})
+
+const resetSpeedTestState = () => {
+  modalState.speedTest.testing = false
+  modalState.speedTest.latency = null
+  modalState.speedTest.statusCode = null
+  modalState.speedTest.error = null
+}
+
+const testApiSpeed = async () => {
+  const url = modalState.form.apiUrl.trim()
+  if (!url) return
+
+  // Validate URL format
+  try {
+    const parsed = new URL(url)
+    if (!/^https?:/.test(parsed.protocol)) {
+      modalState.speedTest.error = t('components.main.speedTest.invalidUrl')
+      return
+    }
+  } catch {
+    modalState.speedTest.error = t('components.main.speedTest.invalidUrl')
+    return
+  }
+
+  resetSpeedTestState()
+  modalState.speedTest.testing = true
+
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 5000)
+
+  try {
+    const startTime = performance.now()
+    const response = await fetch(url, {
+      method: 'HEAD',
+      mode: 'no-cors',
+      signal: controller.signal,
+    })
+    const endTime = performance.now()
+    clearTimeout(timeoutId)
+
+    modalState.speedTest.latency = Math.round(endTime - startTime)
+    // In no-cors mode, we can't access status, so we assume success if no error
+    modalState.speedTest.statusCode = response.type === 'opaque' ? 200 : response.status
+  } catch (error: any) {
+    clearTimeout(timeoutId)
+    if (error.name === 'AbortError') {
+      modalState.speedTest.error = t('components.main.speedTest.timeout')
+    } else {
+      modalState.speedTest.error = t('components.main.speedTest.networkError')
+    }
+  } finally {
+    modalState.speedTest.testing = false
+  }
+}
+
+const canTestSpeed = computed(() => {
+  return modalState.form.apiUrl.trim().length > 0 && !modalState.speedTest.testing
 })
 
 const openCreateModal = () => {
@@ -1012,6 +1087,7 @@ const openCreateModal = () => {
   editingCard.value = null
   Object.assign(modalState.form, defaultFormValues())
   modalState.errors.apiUrl = ''
+  resetSpeedTestState()
   modalState.open = true
 }
 
@@ -1030,6 +1106,7 @@ const openEditModal = (card: AutomationCard) => {
     modelMapping: card.modelMapping || {},
   })
   modalState.errors.apiUrl = ''
+  resetSpeedTestState()
   modalState.open = true
 }
 
@@ -1119,50 +1196,27 @@ const confirmRemove = () => {
 
 // 通用配置相关函数
 const openCommonConfigModal = async () => {
-  console.log('openCommonConfigModal called')
-  const kind = activeTab.value // 'claude' 或 'codex'
-
-  // 先设置标题
-  commonConfigState.title = activeTab.value === 'claude'
-    ? t('components.main.commonConfig.titleClaude')
-    : t('components.main.commonConfig.titleCodex')
   commonConfigState.error = ''
   commonConfigState.jsonText = ''
-  
-  // 立即打开模态框并显示加载状态
   commonConfigState.open = true
-  commonConfigState.loading = true
-
-  // 尝试加载配置，增加超时保护
+  
+  // 异步加载配置（不阻塞模态框打开）
   try {
-    console.log('Fetching common config for', kind)
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Request timeout')), 5000)
-    )
-    
-    const config = await Promise.race([
-      GetCommonConfig(kind),
-      timeoutPromise
-    ]) as Record<string, any>
-
-    console.log('Config loaded', config)
-    commonConfigState.jsonText = Object.keys(config).length > 0
-      ? JSON.stringify(config, null, 2)
-      : ''
-  } catch (error: any) {
-    console.error('Failed to load common config:', error)
-    commonConfigState.error = `加载配置失败: ${error.message || error}`
-  } finally {
-    commonConfigState.loading = false
+    const json = await GetCommonConfigJSON(activeTab.value)
+    if (json && json !== '{}') {
+      // 格式化显示
+      const parsed = JSON.parse(json)
+      commonConfigState.jsonText = JSON.stringify(parsed, null, 2)
+    }
+  } catch (e) {
+    console.error('Failed to load common config:', e)
   }
 }
 
+
+
 const closeCommonConfigModal = () => {
-  console.log('closeCommonConfigModal called')
   commonConfigState.open = false
-  // 重置状态防止下次打开残留
-  commonConfigState.loading = false
-  commonConfigState.error = ''
 }
 
 const validateCommonConfig = () => {
@@ -1201,28 +1255,28 @@ const saveCommonConfig = async () => {
   }
 
   const kind = activeTab.value
-  let config: Record<string, any> = {}
-
+  
+  // 准备要保存的 JSON 字符串
+  let jsonStr = '{}'
   if (commonConfigState.jsonText.trim()) {
     try {
-      config = JSON.parse(commonConfigState.jsonText)
+      // 验证并格式化 JSON
+      const config = JSON.parse(commonConfigState.jsonText)
+      jsonStr = JSON.stringify(config)
     } catch (e: any) {
       commonConfigState.error = `JSON 格式错误: ${e.message}`
       return
     }
   }
 
-  commonConfigState.loading = true
   commonConfigState.error = ''
 
   try {
-    // 1. 保存配置
-    await SaveCommonConfig(kind, config)
+    // 1. 保存配置（使用 JSON 字符串方式）
+    await SaveCommonConfigJSON(kind, jsonStr)
 
     // 2. 如果代理已启用，则重启代理以应用新配置
     if (activeProxyState.value) {
-      // 先尝试禁用再启用，或者直接启用（取决于 enableProxy 实现，假设它能处理重启）
-      // 安全起见，这里捕获代理重启的错误，但不阻止配置保存成功的提示
       try {
         await enableProxy(kind)
       } catch (proxyError: any) {
@@ -1235,8 +1289,6 @@ const saveCommonConfig = async () => {
   } catch (error: any) {
     console.error('Save failed:', error)
     commonConfigState.error = `保存失败: ${error.message || error}`
-  } finally {
-    commonConfigState.loading = false
   }
 }
 
@@ -1386,6 +1438,122 @@ const onTabChange = (idx: number) => {
   font-family: inherit;
   font-size: 0.75rem;
   color: var(--mac-accent);
+}
+
+/* Speed Test Styles - Input with inline button */
+.api-url-wrapper {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--mac-border);
+  border-radius: 12px;
+  background: var(--mac-surface-strong);
+  transition: border-color 0.2s, box-shadow 0.2s;
+  overflow: hidden;
+}
+
+.api-url-wrapper:focus-within {
+  border-color: var(--mac-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mac-accent) 25%, transparent);
+}
+
+.api-url-wrapper.has-error {
+  border-color: rgba(255, 59, 48, 0.8);
+}
+
+.api-url-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 10px 14px;
+  font: inherit;
+  color: var(--mac-text);
+  outline: none;
+  min-width: 0;
+}
+
+.api-url-input::placeholder {
+  color: var(--mac-text-secondary);
+}
+
+.speed-test-btn-inline {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  margin-right: 4px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--mac-text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, color 0.2s;
+}
+
+.speed-test-btn-inline:hover:not(:disabled) {
+  background: var(--mac-border);
+  color: var(--mac-text);
+}
+
+.speed-test-btn-inline:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.speed-test-btn-inline svg {
+  width: 16px;
+  height: 16px;
+}
+
+.speed-test-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.speed-test-result-inline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 6px;
+  padding-left: 2px;
+}
+
+.speed-latency {
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.speed-status {
+  font-size: 0.72rem;
+  color: var(--mac-text-secondary);
+}
+
+.speed-error {
+  font-size: 0.8rem;
+  color: #ff3b30;
+}
+
+/* Speed test color classes */
+.speed-success {
+  color: #34c759;
+}
+
+.speed-redirect {
+  color: #38bdf8;
+}
+
+.speed-client-error {
+  color: #f59e0b;
+}
+
+.speed-server-error {
+  color: #ff3b30;
 }
 
 </style>

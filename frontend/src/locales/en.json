@@ -95,8 +95,9 @@
       "commonConfig": {
         "titleClaude": "Edit Claude Code Common Config",
         "titleCodex": "Edit Codex Common Config",
-        "hint": "This configuration will be merged into Claude Code or Codex settings when switching providers. All providers share this config.",
-        "placeholder": "{\n  \"KEY\": \"value\"\n}",
+        "hintClaude": "This configuration will be merged into Claude Code settings when switching providers. All providers share this config.",
+        "hintCodex": "This configuration will be merged into Codex settings when switching providers. All providers share this config.",
+        "placeholder": "{'{'}\n  \"KEY\": \"value\"\n{'}'}",
         "examples": "Examples",
         "exampleTelemetry": "Disable telemetry",
         "exampleTimeout": "Set MCP timeout (milliseconds)",
@@ -160,6 +161,13 @@
         "lower": "Lower Priority",
         "veryLow": "Very Low Priority",
         "lowest": "Lowest Priority"
+      },
+      "speedTest": {
+        "buttonTitle": "Speed test",
+        "statusCode": "Status",
+        "invalidUrl": "Invalid URL format",
+        "timeout": "Request timeout",
+        "networkError": "Network error"
       }
     },
     "logs": {

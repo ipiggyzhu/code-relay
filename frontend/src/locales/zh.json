@@ -96,8 +96,9 @@
       "commonConfig": {
         "titleClaude": "编辑 Claude Code 通用配置",
         "titleCodex": "编辑 Codex 通用配置",
-        "hint": "此配置将在切换供应商时合并写入到 Claude Code 或 Codex 的配置文件中。所有供应商共享此配置。",
-        "placeholder": "{\n  \"KEY\": \"value\"\n}",
+        "hintClaude": "此配置将在切换供应商时合并写入到 Claude Code 的配置文件中。所有供应商共享此配置。",
+        "hintCodex": "此配置将在切换供应商时合并写入到 Codex 的配置文件中。所有供应商共享此配置。",
+        "placeholder": "{'{'}\n  \"KEY\": \"value\"\n{'}'}",
         "examples": "配置示例",
         "exampleTelemetry": "禁用遥测",
         "exampleTimeout": "设置 MCP 超时时间（毫秒）",
@@ -162,6 +163,13 @@
         "lower": "较低优先级",
         "veryLow": "很低优先级",
         "lowest": "最低优先级"
+      },
+      "speedTest": {
+        "buttonTitle": "测速",
+        "statusCode": "状态码",
+        "invalidUrl": "无效的 URL 格式",
+        "timeout": "请求超时",
+        "networkError": "网络错误"
       }
     },
     "logs": {

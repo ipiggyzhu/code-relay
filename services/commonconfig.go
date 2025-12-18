@@ -44,7 +44,68 @@ func (ccs *CommonConfigService) getConfigPath(kind string) (string, error) {
 	return filepath.Join(dir, filename), nil
 }
 
-// GetCommonConfig 获取通用配置
+// GetCommonConfigJSON 获取通用配置（返回 JSON 字符串，避免 wails 序列化问题）
+func (ccs *CommonConfigService) GetCommonConfigJSON(kind string) (string, error) {
+	path, err := ccs.getConfigPath(kind)
+	if err != nil {
+		return "{}", err
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "{}", nil
+		}
+		return "{}", err
+	}
+
+	if len(data) == 0 {
+		return "{}", nil
+	}
+
+	// 验证 JSON 格式
+	var config map[string]interface{}
+	if err := json.Unmarshal(data, &config); err != nil {
+		return "{}", fmt.Errorf("failed to parse config: %w", err)
+	}
+
+	return string(data), nil
+}
+
+// SaveCommonConfigJSON 保存通用配置（接收 JSON 字符串）
+func (ccs *CommonConfigService) SaveCommonConfigJSON(kind string, jsonStr string) error {
+	// 验证 JSON 格式
+	var config map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &config); err != nil {
+		return fmt.Errorf("invalid JSON: %w", err)
+	}
+
+	path, err := ccs.getConfigPath(kind)
+	if err != nil {
+		return err
+	}
+
+	// 格式化 JSON
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to serialize config: %w", err)
+	}
+
+	// 原子写入
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return fmt.Errorf("failed to write temp file: %w", err)
+	}
+
+	if err := os.Rename(tmp, path); err != nil {
+		os.Remove(tmp)
+		return fmt.Errorf("failed to rename temp file: %w", err)
+	}
+
+	return nil
+}
+
+// GetCommonConfig 获取通用配置（保留用于内部调用）
 func (ccs *CommonConfigService) GetCommonConfig(kind string) (map[string]interface{}, error) {
 	path, err := ccs.getConfigPath(kind)
 	if err != nil {
@@ -54,7 +115,6 @@ func (ccs *CommonConfigService) GetCommonConfig(kind string) (map[string]interfa
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// 文件不存在，返回空配置
 			return make(map[string]interface{}), nil
 		}
 		return nil, err

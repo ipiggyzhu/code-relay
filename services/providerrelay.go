@@ -266,21 +266,24 @@ func (prs *ProviderRelayService) forwardRequest(
 	start := time.Now()
 	defer func() {
 		requestLog.DurationSec = time.Since(start).Seconds()
-		if _, err := xdb.New("request_log").Insert(xdb.Record{
-			"platform":            requestLog.Platform,
-			"model":               requestLog.Model,
-			"provider":            requestLog.Provider,
-			"http_code":           requestLog.HttpCode,
-			"input_tokens":        requestLog.InputTokens,
-			"output_tokens":       requestLog.OutputTokens,
-			"cache_create_tokens": requestLog.CacheCreateTokens,
-			"cache_read_tokens":   requestLog.CacheReadTokens,
-			"reasoning_tokens":    requestLog.ReasoningTokens,
-			"is_stream":           boolToInt(requestLog.IsStream),
-			"duration_sec":        requestLog.DurationSec,
-		}); err != nil {
-			log.Printf("写入 request_log 失败: %v", err)
-		}
+		// 异步写入数据库，不阻塞响应
+		go func(log *ReqeustLog) {
+			if _, err := xdb.New("request_log").Insert(xdb.Record{
+				"platform":            log.Platform,
+				"model":               log.Model,
+				"provider":            log.Provider,
+				"http_code":           log.HttpCode,
+				"input_tokens":        log.InputTokens,
+				"output_tokens":       log.OutputTokens,
+				"cache_create_tokens": log.CacheCreateTokens,
+				"cache_read_tokens":   log.CacheReadTokens,
+				"reasoning_tokens":    log.ReasoningTokens,
+				"is_stream":           boolToInt(log.IsStream),
+				"duration_sec":        log.DurationSec,
+			}); err != nil {
+				// 静默处理，避免日志刷屏
+			}
+		}(requestLog)
 	}()
 
 	req := xrequest.New().

@@ -768,51 +768,60 @@ html.dark .mac-sidebar-item:hover {
 }
 
 .logs-table {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
   font-size: 0.92rem;
-  min-width: 100%;
 }
 
 .logs-table th,
 .logs-table td {
-  padding: 14px 16px;
+  padding: 12px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  text-align: left;
+  text-align: center;
   white-space: nowrap;
 }
 
 .logs-table .col-time {
-  width: 180px;
+  width: 170px;
+  min-width: 170px;
 }
 
 .logs-table .col-platform {
-  width: 120px;
+  width: 80px;
+  min-width: 80px;
 }
 
 .logs-table .col-provider {
-  width: 170px;
+  width: 120px;
+  min-width: 120px;
 }
 
 .logs-table .col-model {
-  width: 150px;
+  width: 220px;
+  min-width: 220px;
 }
 
 .logs-table .col-http {
-  width: 90px;
+  width: 70px;
+  min-width: 70px;
 }
 
 .logs-table .col-stream {
-  width: 120px;
+  width: 70px;
+  min-width: 70px;
 }
 
 .logs-table .col-duration {
-  width: 120px;
+  width: 80px;
+  min-width: 80px;
 }
 
 .logs-table .col-tokens {
-  width: 340px;
+  width: 160px;
+  min-width: 160px;
   white-space: normal;
+  text-align: left;
 }
 
 .logs-table td.http-success {
@@ -836,23 +845,25 @@ html.dark .mac-sidebar-item:hover {
 }
 
 .token-cell {
-  font-size: 0.82rem;
-  line-height: 1.5;
+  font-size: 0.8rem;
+  line-height: 1.6;
   color: var(--mac-text);
+  text-align: left;
 }
 
 .token-cell div {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 8px;
+  white-space: nowrap;
 }
 
 .token-label {
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
+  font-size: 0.72rem;
+  font-weight: 500;
   color: var(--mac-text-secondary);
-  min-width: 1.2rem;
+  min-width: 50px;
 }
 
 .token-value {

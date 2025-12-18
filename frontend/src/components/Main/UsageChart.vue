@@ -235,43 +235,41 @@ const chartOption = computed(() => {
 
 .chart-header {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   margin-bottom: 0.5rem;
-  padding: 0 1rem;
+  padding: 0 0.5rem;
 }
 
 .chart-legend {
   display: flex;
-  gap: 1.5rem;
-  flex-wrap: nowrap; /* Prevent wrapping */
-  overflow-x: auto; /* Allow scroll if screen is tiny */
+  gap: 0.5rem;
+  flex-wrap: wrap; /* Allow wrapping on smaller screens */
+  justify-content: center;
 }
 
 .legend-item {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
-  font-size: 0.75rem;
-  color: #9ca3af; /* Lighter text by default */
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--mac-text-secondary, #86868b);
   cursor: pointer;
-  background: none;
+  background: transparent;
   border: none;
   padding: 4px 8px;
-  border-radius: 999px; /* Pill shape */
-  transition: all 0.2s;
-  opacity: 1; /* Handle opacity via color state */
-  white-space: nowrap; /* Prevent text wrapping */
+  transition: color 0.2s;
+  white-space: nowrap;
+  opacity: 0.6;
 }
 
 .legend-item:hover {
-  background-color: #f3f4f6;
-  color: #4b5563;
+  opacity: 0.85;
 }
 
 .legend-item.active {
-  background-color: #f3f4f6;
-  color: #111827;
+  color: var(--mac-text, #f5f5f7);
   font-weight: 500;
+  opacity: 1;
 }
 
 .dot {
