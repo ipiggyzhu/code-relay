@@ -168,6 +168,24 @@
         "invalidUrl": "Invalid URL format",
         "timeout": "Request timeout",
         "networkError": "Network error"
+      },
+      "update": {
+        "checking": "Checking for updates...",
+        "available": "New version available",
+        "noUpdate": "You're up to date",
+        "currentVersion": "Current version",
+        "latestVersion": "Latest version",
+        "fileSize": "File size",
+        "download": "Download update",
+        "downloading": "Downloading...",
+        "downloadComplete": "Download complete",
+        "install": "Install now",
+        "installing": "Installing...",
+        "installHint": "App will restart after installation",
+        "downloadFailed": "Download failed",
+        "installFailed": "Installation failed",
+        "viewRelease": "View release",
+        "close": "Close"
       }
     },
     "logs": {

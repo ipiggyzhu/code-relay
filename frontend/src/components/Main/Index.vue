@@ -6,7 +6,7 @@
         class="ghost-icon github-icon"
         :class="{ 'github-upgrade': hasUpdateAvailable }"
         :data-tooltip="hasUpdateAvailable ? t('components.main.controls.githubUpdate') : t('components.main.controls.github')"
-        @click="openGitHub"
+        @click="hasUpdateAvailable ? openUpdateModal() : openGitHub()"
       >
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path
@@ -515,6 +515,74 @@
         </form>
       </BaseModal>
 
+      <!-- 更新弹窗 -->
+      <BaseModal
+        :open="updateModalState.open"
+        :title="t('components.main.update.available')"
+        @close="closeUpdateModal"
+      >
+        <div class="update-modal-content">
+          <div v-if="updateModalState.checking" class="update-checking">
+            <div class="update-spinner"></div>
+            <p>{{ t('components.main.update.checking') }}</p>
+          </div>
+
+          <template v-else-if="updateModalState.updateInfo">
+            <div v-if="updateModalState.updateInfo.hasUpdate" class="update-info">
+              <div class="update-versions">
+                <div class="version-row">
+                  <span class="version-label">{{ t('components.main.update.currentVersion') }}:</span>
+                  <span class="version-value">{{ updateModalState.updateInfo.currentVersion }}</span>
+                </div>
+                <div class="version-row">
+                  <span class="version-label">{{ t('components.main.update.latestVersion') }}:</span>
+                  <span class="version-value version-new">{{ updateModalState.updateInfo.latestVersion }}</span>
+                </div>
+                <div v-if="updateModalState.updateInfo.fileSize" class="version-row">
+                  <span class="version-label">{{ t('components.main.update.fileSize') }}:</span>
+                  <span class="version-value">{{ formatFileSize(updateModalState.updateInfo.fileSize) }}</span>
+                </div>
+              </div>
+
+              <p v-if="updateModalState.error" class="update-error">{{ updateModalState.error }}</p>
+
+              <div class="update-actions">
+                <template v-if="!updateModalState.downloadedPath">
+                  <BaseButton
+                    v-if="updateModalState.updateInfo.downloadUrl"
+                    :disabled="updateModalState.downloading"
+                    @click="handleDownloadUpdate"
+                  >
+                    {{ updateModalState.downloading ? t('components.main.update.downloading') : t('components.main.update.download') }}
+                  </BaseButton>
+                  <BaseButton variant="outline" @click="openReleasePage">
+                    {{ t('components.main.update.viewRelease') }}
+                  </BaseButton>
+                </template>
+                <template v-else>
+                  <p class="update-hint">{{ t('components.main.update.installHint') }}</p>
+                  <BaseButton
+                    :disabled="updateModalState.installing"
+                    @click="handleInstallUpdate"
+                  >
+                    {{ updateModalState.installing ? t('components.main.update.installing') : t('components.main.update.install') }}
+                  </BaseButton>
+                </template>
+              </div>
+            </div>
+
+            <div v-else class="update-no-update">
+              <p>{{ t('components.main.update.noUpdate') }}</p>
+              <p class="update-current">{{ t('components.main.update.currentVersion') }}: {{ updateModalState.updateInfo.currentVersion }}</p>
+            </div>
+          </template>
+
+          <p v-if="updateModalState.error && !updateModalState.updateInfo" class="update-error">
+            {{ updateModalState.error }}
+          </p>
+        </div>
+      </BaseModal>
+
       <footer v-if="appVersion" class="main-version">
         {{ t('components.main.versionLabel', { version: appVersion }) }}
       </footer>
@@ -551,6 +619,7 @@ import { fetchCurrentVersion } from '../../services/version'
 import { fetchAppSettings, type AppSettings } from '../../services/appSettings'
 import { getCurrentTheme, setTheme, type ThemeMode } from '../../utils/ThemeManager'
 import { getSpeedTestColorClass } from '../../utils/speedTest'
+import { checkForUpdates as checkForUpdatesService, downloadUpdate, installUpdate, formatFileSize, type UpdateInfo } from '../../services/update'
 import { useRouter } from 'vue-router'
 
 const { t, locale } = useI18n()
@@ -598,6 +667,18 @@ const showHomeTitle = ref(true)
 const mcpIcon = lobeIcons['mcp'] ?? ''
 const appVersion = ref('')
 const hasUpdateAvailable = ref(false)
+
+// 更新弹窗状态
+const updateModalState = reactive({
+  open: false,
+  checking: false,
+  updateInfo: null as UpdateInfo | null,
+  downloading: false,
+  downloadProgress: 0,
+  downloadedPath: '',
+  installing: false,
+  error: '',
+})
 
 const intensityClass = (value: number) => `gh-level-${value}`
 
@@ -671,6 +752,79 @@ const checkForUpdates = async () => {
     }
   } catch (error) {
     console.error('failed to fetch release info', error)
+  }
+}
+
+// 打开更新弹窗
+const openUpdateModal = async () => {
+  updateModalState.open = true
+  updateModalState.checking = true
+  updateModalState.error = ''
+  updateModalState.downloadedPath = ''
+  updateModalState.downloading = false
+  updateModalState.installing = false
+
+  try {
+    const info = await checkForUpdatesService()
+    updateModalState.updateInfo = info
+  } catch (error) {
+    updateModalState.error = String(error)
+  } finally {
+    updateModalState.checking = false
+  }
+}
+
+const closeUpdateModal = () => {
+  updateModalState.open = false
+}
+
+// 下载更新
+const handleDownloadUpdate = async () => {
+  if (!updateModalState.updateInfo?.downloadUrl) return
+
+  updateModalState.downloading = true
+  updateModalState.error = ''
+
+  try {
+    const path = await downloadUpdate(updateModalState.updateInfo.downloadUrl)
+    if (path) {
+      updateModalState.downloadedPath = path
+    } else {
+      updateModalState.error = t('components.main.update.downloadFailed')
+    }
+  } catch (error) {
+    updateModalState.error = String(error)
+  } finally {
+    updateModalState.downloading = false
+  }
+}
+
+// 安装更新
+const handleInstallUpdate = async () => {
+  if (!updateModalState.downloadedPath) return
+
+  updateModalState.installing = true
+  updateModalState.error = ''
+
+  try {
+    const success = await installUpdate(updateModalState.downloadedPath)
+    if (success) {
+      // 安装脚本已启动，关闭应用
+      window.close()
+    } else {
+      updateModalState.error = t('components.main.update.installFailed')
+    }
+  } catch (error) {
+    updateModalState.error = String(error)
+  } finally {
+    updateModalState.installing = false
+  }
+}
+
+// 打开发布页面
+const openReleasePage = () => {
+  if (updateModalState.updateInfo?.releaseUrl) {
+    Browser.OpenURL(updateModalState.updateInfo.releaseUrl)
   }
 }
 
@@ -1348,6 +1502,102 @@ const onTabChange = (idx: number) => {
   text-align: center;
   color: var(--mac-text-secondary);
   font-size: 0.85rem;
+}
+
+/* 更新弹窗样式 */
+.update-modal-content {
+  padding: 8px 0;
+}
+
+.update-checking {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px;
+}
+
+.update-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--mac-border);
+  border-top-color: var(--mac-accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.update-info {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.update-versions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--mac-surface-strong);
+  border-radius: 8px;
+}
+
+.version-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.version-label {
+  color: var(--mac-text-secondary);
+  font-size: 0.875rem;
+}
+
+.version-value {
+  font-weight: 500;
+}
+
+.version-new {
+  color: var(--mac-accent);
+}
+
+.update-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.update-hint {
+  color: var(--mac-text-secondary);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.update-error {
+  color: var(--mac-danger);
+  font-size: 0.875rem;
+  padding: 8px 12px;
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: 6px;
+}
+
+.update-no-update {
+  text-align: center;
+  padding: 24px;
+}
+
+.update-no-update p:first-child {
+  font-size: 1rem;
+  color: var(--mac-text);
+  margin-bottom: 8px;
+}
+
+.update-current {
+  color: var(--mac-text-secondary);
+  font-size: 0.875rem;
 }
 
 /* 通用配置编辑器样式 */

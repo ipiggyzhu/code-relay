@@ -80,6 +80,7 @@ func main() {
 	importService := services.NewImportService(providerService, mcpService)
 	dockService := dock.New()
 	versionService := NewVersionService()
+	updateService := services.NewUpdateService(AppVersion)
 
 	go func() {
 		if err := providerRelay.Start(); err != nil {
@@ -110,6 +111,7 @@ func main() {
 			application.NewService(importService),
 			application.NewService(dockService),
 			application.NewService(versionService),
+			application.NewService(updateService),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
