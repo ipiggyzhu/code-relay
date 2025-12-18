@@ -905,7 +905,7 @@ const startProviderStatsTimer = () => {
     providerTabIds.forEach((tab) => {
       void loadProviderStats(tab)
     })
-  }, 60_000)
+  }, 5_000) // 5秒刷新一次，更实时
 }
 
 const stopProviderStatsTimer = () => {
