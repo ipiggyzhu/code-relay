@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -183,7 +185,80 @@ func ccSwitchConfigPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".cc-switch", "config.json"), nil
+
+	// 配置文件名（settings.json 是主要的，config.json 是备选）
+	configNames := []string{"settings.json", "config.json"}
+
+	// 基础候选目录（跨平台）
+	baseDirs := []string{
+		filepath.Join(home, ".cc-switch"),
+		filepath.Join(home, ".config", "cc-switch"),
+	}
+
+	// 平台特定目录
+	if runtime.GOOS == "windows" {
+		baseDirs = append(baseDirs,
+			filepath.Join(home, "AppData", "Roaming", "cc-switch"),
+			filepath.Join(home, "AppData", "Local", "cc-switch"),
+			filepath.Join(home, "AppData", "Roaming", "CC-Switch"),
+			filepath.Join(home, "AppData", "Local", "CC-Switch"),
+		)
+	} else if runtime.GOOS == "darwin" {
+		baseDirs = append(baseDirs,
+			filepath.Join(home, "Library", "Application Support", "cc-switch"),
+			filepath.Join(home, "Library", "Application Support", "CC-Switch"),
+		)
+	}
+
+	// 通过 PATH 查找 cc-switch 可执行文件位置（跨平台）
+	if exePath := findCcSwitchExe(); exePath != "" {
+		installDir := filepath.Dir(exePath)
+		// 优先搜索安装目录
+		baseDirs = append([]string{
+			installDir,
+			filepath.Join(installDir, "resources"),
+			filepath.Join(installDir, "data"),
+			filepath.Dir(installDir), // 上级目录
+			filepath.Join(filepath.Dir(installDir), "Resources"), // macOS .app bundle
+		}, baseDirs...)
+	}
+
+	// 组合所有候选路径
+	var candidates []string
+	for _, dir := range baseDirs {
+		for _, name := range configNames {
+			candidates = append(candidates, filepath.Join(dir, name))
+		}
+	}
+
+	// 检查所有候选路径
+	for _, path := range candidates {
+		if _, err := os.Stat(path); err == nil {
+			return path, nil
+		}
+	}
+
+	// 默认返回第一个路径（即使不存在）
+	return candidates[0], nil
+}
+
+// findCcSwitchExe 通过 PATH 环境变量查找 cc-switch 可执行文件（跨平台）
+func findCcSwitchExe() string {
+	// 根据平台选择可执行文件名
+	var exeNames []string
+	if runtime.GOOS == "windows" {
+		exeNames = []string{"cc-switch.exe", "CC-Switch.exe"}
+	} else {
+		exeNames = []string{"cc-switch", "CC-Switch"}
+	}
+
+	for _, name := range exeNames {
+		// exec.LookPath 是跨平台的，不会弹出窗口
+		if path, err := exec.LookPath(name); err == nil {
+			return path
+		}
+	}
+	return ""
 }
 
 type ccSwitchConfig struct {

@@ -186,7 +186,8 @@ func (ls *LogService) StatsSince(platform string) (LogStats, error) {
 	model := xdb.New("request_log")
 	seriesStart := startOfDay(now)
 	seriesEnd := seriesStart.Add(seriesHours * time.Hour)
-	queryStart := seriesStart.Add(-24 * time.Hour)
+	// 只查询今天的数据，不再查询昨天的
+	queryStart := seriesStart
 	summaryStart := seriesStart
 	options := []xdb.Option{
 		xdb.WhereGte("created_at", queryStart.Format(timeLayout)),

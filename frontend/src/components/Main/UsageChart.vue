@@ -38,11 +38,11 @@ use([
   LineChart,
   GridComponent,
   TooltipComponent,
-  LegendComponent, // We implement custom legend but keep this for internal logic if needed
+  LegendComponent,
   DataZoomComponent
 ])
 
-provide(THEME_KEY, 'light') // or dynamic based on app theme
+provide(THEME_KEY, 'light')
 
 const props = defineProps<{
   data: UsageHeatmapWeek[]
@@ -50,13 +50,12 @@ const props = defineProps<{
 
 const { t } = useI18n()
 
-// Color palette matching the app's aesthetic (Apple-like/Modern)
 const colors = {
-  requests: '#3b82f6', // Blue
-  inputTokens: '#10b981', // Emerald
-  outputTokens: '#f59e0b', // Amber
-  reasoningTokens: '#8b5cf6', // Violet
-  cost: '#ef4444' // Red
+  requests: '#3b82f6',
+  inputTokens: '#10b981',
+  outputTokens: '#f59e0b',
+  reasoningTokens: '#8b5cf6',
+  cost: '#ef4444'
 }
 
 const metrics = [
@@ -67,12 +66,10 @@ const metrics = [
   { key: 'cost', label: t('components.main.heatmap.metrics.cost'), color: colors.cost }
 ]
 
-// Default active metrics
 const activeMetrics = ref(['inputTokens', 'outputTokens', 'cost'])
 
 const toggleMetric = (key: string) => {
   if (activeMetrics.value.includes(key)) {
-    // Prevent unselecting the last one
     if (activeMetrics.value.length > 1) {
       activeMetrics.value = activeMetrics.value.filter(k => k !== key)
     }
@@ -81,53 +78,81 @@ const toggleMetric = (key: string) => {
   }
 }
 
-// Flatten data: standardizing the weeks structure into a flat daily array
 const flatData = computed(() => {
-  const result: any[] = []
-  if (!props.data) return result
+  if (!props.data || props.data.length === 0) return []
 
-  // The data comes as weeks (arrays of days/buckets), we just want to sort them by date flatly
-  // Iterate strictly through the structure
+  const dailyMap = new Map<string, {
+    date: string
+    requests: number
+    inputTokens: number
+    outputTokens: number
+    reasoningTokens: number
+    cost: number
+  }>()
+
   for (const week of props.data) {
     for (const day of week) {
-       // Filter out future dates or placeholder dates if necessary, 
-       // but assuming data is clean or we act on valid dates
-       if (day.dateKey) {
-           result.push({
-               date: day.dateKey,
-               requests: day.requests,
-               inputTokens: day.inputTokens,
-               outputTokens: day.outputTokens,
-               reasoningTokens: day.reasoningTokens,
-               cost: day.cost
-           })
-       }
+      if (!day.dateKey) continue
+      
+      const d = new Date(day.dateKey)
+      if (isNaN(d.getTime())) continue
+      
+      const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      
+      const existing = dailyMap.get(dateKey)
+      if (existing) {
+        existing.requests += day.requests || 0
+        existing.inputTokens += day.inputTokens || 0
+        existing.outputTokens += day.outputTokens || 0
+        existing.reasoningTokens += day.reasoningTokens || 0
+        existing.cost += day.cost || 0
+      } else {
+        dailyMap.set(dateKey, {
+          date: dateKey,
+          requests: day.requests || 0,
+          inputTokens: day.inputTokens || 0,
+          outputTokens: day.outputTokens || 0,
+          reasoningTokens: day.reasoningTokens || 0,
+          cost: day.cost || 0
+        })
+      }
     }
   }
-  // Ensure sorted by date
-  return result.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+  return Array.from(dailyMap.values())
+    .filter(d => d.requests > 0 || d.inputTokens > 0 || d.outputTokens > 0 || d.cost > 0)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 })
+
+const costLabel = t('components.main.heatmap.metrics.cost')
 
 const chartOption = computed(() => {
   const dates = flatData.value.map(d => d.date)
   
+  const getYAxisIndex = (key: string) => {
+    if (key === 'cost') return 1
+    if (key === 'requests') return 2
+    return 0
+  }
+
   const series = metrics
     .filter(m => activeMetrics.value.includes(m.key))
     .map(m => ({
       name: m.label,
       type: 'line',
-      data: flatData.value.map(d => d[m.key]),
-      smooth: true,
-      showSymbol: false,
+      data: flatData.value.map(d => d[m.key as keyof typeof d]),
+      smooth: 0.3,
+      showSymbol: true,
       symbol: 'circle',
-      symbolSize: 6,
-      // Use secondary axis for cost to avoid scale issues
-      yAxisIndex: m.key === 'cost' ? 1 : 0,
+      symbolSize: 8,
+      yAxisIndex: getYAxisIndex(m.key),
       itemStyle: {
-        color: m.color
+        color: m.color,
+        borderColor: '#fff',
+        borderWidth: 2
       },
       lineStyle: {
-        width: 1.5
+        width: 2.5
       },
       areaStyle: {
         color: {
@@ -137,9 +162,17 @@ const chartOption = computed(() => {
           x2: 0,
           y2: 1,
           colorStops: [
-            { offset: 0, color: m.color + '33' }, // 20% opacity (lighter area)
-            { offset: 1, color: m.color + '00' }  // 0% opacity
+            { offset: 0, color: m.color + '40' },
+            { offset: 1, color: m.color + '05' }
           ]
+        }
+      },
+      emphasis: {
+        focus: 'series',
+        itemStyle: {
+          borderWidth: 3,
+          shadowBlur: 10,
+          shadowColor: m.color + '80'
         }
       }
     }))
@@ -147,24 +180,37 @@ const chartOption = computed(() => {
   return {
     tooltip: {
       trigger: 'axis',
-      backgroundColor: 'rgba(255, 255, 255, 0.95)',
-      borderColor: '#e5e7eb',
-      textStyle: {
-        color: '#374151',
-        fontSize: 12
-      },
-      padding: [8, 12],
       axisPointer: {
-        lineStyle: {
-          color: '#9ca3af',
-          type: 'dashed',
-          width: 1
-        }
+        type: 'line',
+        lineStyle: { color: '#d1d5db', type: 'dashed', width: 1 }
+      },
+      backgroundColor: 'rgba(255, 255, 255, 0.98)',
+      borderColor: '#e5e7eb',
+      borderWidth: 1,
+      borderRadius: 8,
+      textStyle: { color: '#374151', fontSize: 12 },
+      padding: [10, 14],
+      formatter: (params: any) => {
+        if (!params || params.length === 0) return ''
+        const date = params[0].axisValue
+        let html = '<div style="font-weight:500;margin-bottom:6px;color:#111827">' + date + '</div>'
+        params.forEach((item: any) => {
+          const isCost = item.seriesName.includes(costLabel)
+          const value = isCost
+            ? '\u0024' + (item.value || 0).toFixed(4)
+            : (item.value || 0).toLocaleString()
+          html += '<div style="display:flex;align-items:center;gap:6px;margin:3px 0">'
+          html += '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + item.color + '"></span>'
+          html += '<span style="color:#6b7280">' + item.seriesName + '</span>'
+          html += '<span style="margin-left:auto;font-weight:500;color:#111827">' + value + '</span>'
+          html += '</div>'
+        })
+        return html
       }
     },
     grid: {
-      top: 30, 
-      right: 40, // Increased for right Y-axis
+      top: 30,
+      right: 50,
       bottom: 20,
       left: 10,
       containLabel: true
@@ -179,44 +225,45 @@ const chartOption = computed(() => {
         color: '#9ca3af',
         fontSize: 11,
         formatter: (value: string) => {
-          // Format date as MM-DD
-          const d = new Date(value)
-          return `${d.getMonth() + 1}-${d.getDate()}`
+          const parts = value.split('-')
+          if (parts.length >= 3) {
+            return parseInt(parts[1]) + '-' + parseInt(parts[2])
+          }
+          return value
+        }
+      },
+      axisPointer: {
+        label: {
+          backgroundColor: '#6b7280'
         }
       }
     },
     yAxis: [
       {
         type: 'value',
-        name: t('components.main.heatmap.metrics.requests') + '/' + t('components.main.providers.tokens'),
-        nameTextStyle: {
-           color: '#9ca3af',
-           padding: [0, 0, 0, 10]
-        },
-        splitLine: {
-          lineStyle: {
-            color: '#f3f4f6'
-          }
-        },
-        axisLabel: {
-          color: '#9ca3af',
-          fontSize: 11
-        }
+        name: t('components.main.providers.tokens'),
+        nameTextStyle: { color: '#9ca3af', padding: [0, 0, 0, 10] },
+        splitLine: { lineStyle: { color: '#f3f4f6' } },
+        axisLabel: { color: '#9ca3af', fontSize: 11 }
       },
       {
         type: 'value',
         name: t('components.main.heatmap.metrics.cost'),
         position: 'right',
-        nameTextStyle: {
-           color: '#ef4444',
-           padding: [0, 10, 0, 0]
-        },
-        splitLine: { show: false }, // Hide grid lines for secondary axis
+        min: 0,
+        max: 10,
+        nameTextStyle: { color: '#9ca3af', padding: [0, 10, 0, 0] },
+        splitLine: { show: false },
         axisLabel: {
-          color: '#ef4444', // Match cost color
+          color: '#9ca3af',
           fontSize: 11,
-          formatter: '${value}'
+          formatter: (value: number) => '\u0024' + value
         }
+      },
+      {
+        type: 'value',
+        show: false,
+        splitLine: { show: false }
       }
     ],
     series
@@ -227,7 +274,7 @@ const chartOption = computed(() => {
 <style scoped>
 .usage-chart-container {
   width: 100%;
-  height: 320px; /* Exact height to prevent layout collapse */
+  height: 320px;
   padding-top: 1rem;
   display: flex;
   flex-direction: column;
@@ -243,7 +290,7 @@ const chartOption = computed(() => {
 .chart-legend {
   display: flex;
   gap: 0.5rem;
-  flex-wrap: wrap; /* Allow wrapping on smaller screens */
+  flex-wrap: wrap;
   justify-content: center;
 }
 
@@ -279,9 +326,7 @@ const chartOption = computed(() => {
   flex-shrink: 0;
 }
 
-
 .chart {
-  /* Ensure it fills the container height */
   flex: 1;
   width: 100%;
   min-height: 250px;

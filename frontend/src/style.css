@@ -70,6 +70,44 @@ body {
   transition: background 0.3s ease, color 0.3s ease;
 }
 
+/* 全局隐藏滚动条 - WebView2/Chromium */
+* {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+*::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
+/* 确保所有可滚动容器都隐藏滚动条 */
+html, body, #app,
+.main-shell, .contrib-page, .logs-page, .general-page, .skill-page,
+.mac-content, .mac-modal-wrapper, .mac-modal-scrollable, .mac-modal-body,
+.modal-scroll, .automation-list, .logs-table-wrapper,
+.icon-select-options, .skill-list, .skill-repo-list,
+[style*="overflow"], [class*="scroll"] {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+html::-webkit-scrollbar, body::-webkit-scrollbar, #app::-webkit-scrollbar,
+.main-shell::-webkit-scrollbar, .contrib-page::-webkit-scrollbar,
+.logs-page::-webkit-scrollbar, .general-page::-webkit-scrollbar,
+.skill-page::-webkit-scrollbar, .mac-content::-webkit-scrollbar,
+.mac-modal-wrapper::-webkit-scrollbar, .mac-modal-scrollable::-webkit-scrollbar,
+.mac-modal-body::-webkit-scrollbar, .modal-scroll::-webkit-scrollbar,
+.automation-list::-webkit-scrollbar, .logs-table-wrapper::-webkit-scrollbar,
+.icon-select-options::-webkit-scrollbar, .skill-list::-webkit-scrollbar,
+.skill-repo-list::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
 #app {
   width: 100%;
 }
@@ -966,14 +1004,15 @@ html.dark .mac-sidebar-item:hover {
 
 .logs-pagination {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
 }
 
-.logs-pagination .pagination-actions {
-  display: inline-flex;
-  gap: 8px;
+.logs-pagination .pagination-info {
+  min-width: 60px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 
@@ -1272,7 +1311,6 @@ html.dark .ghost-icon:hover {
 .mac-modal-wrapper {
   position: absolute;
   inset: 0;
-  /* No z-index needed - parent .mac-modal-root handles stacking */
   overflow-y: auto;
   width: 100%;
   height: 100%;

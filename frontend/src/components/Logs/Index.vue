@@ -106,15 +106,13 @@
     </section>
 
     <div class="logs-pagination">
-      <span>{{ page }} / {{ totalPages }}</span>
-      <div class="pagination-actions">
-        <BaseButton variant="outline" size="sm" :disabled="page === 1 || loading" @click="prevPage">
-          ‹
-        </BaseButton>
-        <BaseButton variant="outline" size="sm" :disabled="page >= totalPages || loading" @click="nextPage">
-          ›
-        </BaseButton>
-      </div>
+      <BaseButton variant="outline" size="sm" :disabled="page === 1 || loading" @click="prevPage">
+        ‹
+      </BaseButton>
+      <span class="pagination-info">{{ page }} / {{ totalPages }}</span>
+      <BaseButton variant="outline" size="sm" :disabled="page >= totalPages || loading" @click="nextPage">
+        ›
+      </BaseButton>
     </div>
   </div>
 </template>

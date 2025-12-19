@@ -280,6 +280,7 @@ func (prs *ProviderRelayService) forwardRequest(
 				"reasoning_tokens":    log.ReasoningTokens,
 				"is_stream":           boolToInt(log.IsStream),
 				"duration_sec":        log.DurationSec,
+				"created_at":          time.Now().Format("2006-01-02 15:04:05"), // 使用本地时间
 			}); err != nil {
 				// 静默处理，避免日志刷屏
 			}

@@ -1277,7 +1277,7 @@ const submitModal = () => {
   const list = cards[modalState.tabId]
   if (!list) return
   const name = modalState.form.name.trim()
-  const apiUrl = modalState.form.apiUrl.trim()
+  const apiUrl = modalState.form.apiUrl.trim().replace(/\/+$/, '') // 去除末尾斜杠
   const apiKey = modalState.form.apiKey.trim()
   const officialSite = modalState.form.officialSite.trim()
   const icon = (modalState.form.icon || defaultIconKey).toString().trim().toLowerCase() || defaultIconKey
