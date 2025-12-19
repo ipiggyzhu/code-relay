@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	mcpStoreDir     = ".code-switch"
+	mcpStoreDir     = ".code-relay"
 	mcpStoreFile    = "mcp.json"
 	claudeMcpFile   = ".claude.json"
 	codexDirName    = ".codex"

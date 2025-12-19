@@ -79,8 +79,20 @@ const toggleMetric = (key: string) => {
 }
 
 const flatData = computed(() => {
-  if (!props.data || props.data.length === 0) return []
+  // 生成完整的14天日期范围（从13天前到今天）
+  const days = 14
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  
+  const allDates: string[] = []
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today)
+    d.setDate(d.getDate() - i)
+    const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    allDates.push(dateKey)
+  }
 
+  // 从 props.data 中收集每天的数据
   const dailyMap = new Map<string, {
     date: string
     requests: number
@@ -90,38 +102,52 @@ const flatData = computed(() => {
     cost: number
   }>()
 
-  for (const week of props.data) {
-    for (const day of week) {
-      if (!day.dateKey) continue
-      
-      const d = new Date(day.dateKey)
-      if (isNaN(d.getTime())) continue
-      
-      const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-      
-      const existing = dailyMap.get(dateKey)
-      if (existing) {
-        existing.requests += day.requests || 0
-        existing.inputTokens += day.inputTokens || 0
-        existing.outputTokens += day.outputTokens || 0
-        existing.reasoningTokens += day.reasoningTokens || 0
-        existing.cost += day.cost || 0
-      } else {
-        dailyMap.set(dateKey, {
-          date: dateKey,
-          requests: day.requests || 0,
-          inputTokens: day.inputTokens || 0,
-          outputTokens: day.outputTokens || 0,
-          reasoningTokens: day.reasoningTokens || 0,
-          cost: day.cost || 0
-        })
+  if (props.data && props.data.length > 0) {
+    for (const week of props.data) {
+      for (const day of week) {
+        if (!day.dateKey) continue
+        
+        const d = new Date(day.dateKey)
+        if (isNaN(d.getTime())) continue
+        
+        const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        
+        const existing = dailyMap.get(dateKey)
+        if (existing) {
+          existing.requests += day.requests || 0
+          existing.inputTokens += day.inputTokens || 0
+          existing.outputTokens += day.outputTokens || 0
+          existing.reasoningTokens += day.reasoningTokens || 0
+          existing.cost += day.cost || 0
+        } else {
+          dailyMap.set(dateKey, {
+            date: dateKey,
+            requests: day.requests || 0,
+            inputTokens: day.inputTokens || 0,
+            outputTokens: day.outputTokens || 0,
+            reasoningTokens: day.reasoningTokens || 0,
+            cost: day.cost || 0
+          })
+        }
       }
     }
   }
 
-  return Array.from(dailyMap.values())
-    .filter(d => d.requests > 0 || d.inputTokens > 0 || d.outputTokens > 0 || d.cost > 0)
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+  // 返回完整的14天数据，没有数据的天用0填充
+  return allDates.map(dateKey => {
+    const existing = dailyMap.get(dateKey)
+    if (existing) {
+      return existing
+    }
+    return {
+      date: dateKey,
+      requests: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      reasoningTokens: 0,
+      cost: 0
+    }
+  })
 })
 
 const costLabel = t('components.main.heatmap.metrics.cost')
@@ -179,11 +205,16 @@ const chartOption = computed(() => {
 
   return {
     tooltip: {
+      show: true,
       trigger: 'axis',
       axisPointer: {
-        type: 'line',
+        type: 'cross',
+        snap: true,
+        crossStyle: { color: '#d1d5db' },
         lineStyle: { color: '#d1d5db', type: 'dashed', width: 1 }
       },
+      triggerOn: 'mousemove|click',
+      confine: true,
       backgroundColor: 'rgba(255, 255, 255, 0.98)',
       borderColor: '#e5e7eb',
       borderWidth: 1,
@@ -191,17 +222,19 @@ const chartOption = computed(() => {
       textStyle: { color: '#374151', fontSize: 12 },
       padding: [10, 14],
       formatter: (params: any) => {
-        if (!params || params.length === 0) return ''
-        const date = params[0].axisValue
+        // 处理单个 item 触发的情况
+        const items = Array.isArray(params) ? params : [params]
+        if (!items || items.length === 0) return ''
+        const date = items[0].axisValue || items[0].name
         let html = '<div style="font-weight:500;margin-bottom:6px;color:#111827">' + date + '</div>'
-        params.forEach((item: any) => {
-          const isCost = item.seriesName.includes(costLabel)
+        items.forEach((item: any) => {
+          const isCost = item.seriesName?.includes(costLabel)
           const value = isCost
             ? '\u0024' + (item.value || 0).toFixed(4)
             : (item.value || 0).toLocaleString()
           html += '<div style="display:flex;align-items:center;gap:6px;margin:3px 0">'
           html += '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + item.color + '"></span>'
-          html += '<span style="color:#6b7280">' + item.seriesName + '</span>'
+          html += '<span style="color:#6b7280">' + (item.seriesName || '') + '</span>'
           html += '<span style="margin-left:auto;font-weight:500;color:#111827">' + value + '</span>'
           html += '</div>'
         })
@@ -210,9 +243,9 @@ const chartOption = computed(() => {
     },
     grid: {
       top: 30,
-      right: 50,
-      bottom: 20,
-      left: 10,
+      right: 60,
+      bottom: 30,
+      left: 60,
       containLabel: true
     },
     xAxis: {
@@ -242,22 +275,29 @@ const chartOption = computed(() => {
       {
         type: 'value',
         name: t('components.main.providers.tokens'),
-        nameTextStyle: { color: '#9ca3af', padding: [0, 0, 0, 10] },
+        nameTextStyle: { color: '#9ca3af', padding: [0, 40, 0, 0] },
+        nameGap: 15,
         splitLine: { lineStyle: { color: '#f3f4f6' } },
-        axisLabel: { color: '#9ca3af', fontSize: 11 }
+        axisLabel: {
+          color: '#9ca3af',
+          fontSize: 11,
+          formatter: (value: number) => {
+            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
+            if (value >= 1000) return (value / 1000).toFixed(0) + 'K'
+            return value.toString()
+          }
+        }
       },
       {
         type: 'value',
         name: t('components.main.heatmap.metrics.cost'),
         position: 'right',
-        min: 0,
-        max: 10,
         nameTextStyle: { color: '#9ca3af', padding: [0, 10, 0, 0] },
         splitLine: { show: false },
         axisLabel: {
           color: '#9ca3af',
           fontSize: 11,
-          formatter: (value: number) => '\u0024' + value
+          formatter: (value: number) => '\u0024' + value.toFixed(value >= 1 ? 0 : 2)
         }
       },
       {

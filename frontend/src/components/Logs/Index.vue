@@ -193,23 +193,42 @@ const teardownThemeObserver = () => {
 
 const parseLogDate = (value?: string) => {
   if (!value) return null
-  const normalize = value.replace(' ', 'T')
-  const attempts = [value, `${normalize}`, `${normalize}Z`]
-  for (const candidate of attempts) {
-    const parsed = new Date(candidate)
-    if (!Number.isNaN(parsed.getTime())) {
-      return parsed
+  
+  // 提取日期时间部分（去掉任何时区后缀）
+  // 后端返回的格式可能是：
+  // - "2025-12-19 23:49:00" (纯本地时间)
+  // - "2025-12-19 23:49:00 +0000 UTC" (xdb 自动添加的 UTC 后缀，但实际是本地时间)
+  let dateTimePart = value.trim()
+  
+  // 移除 " +0000 UTC" 或类似的时区后缀
+  const plusIdx = dateTimePart.indexOf(' +')
+  if (plusIdx > 0) {
+    dateTimePart = dateTimePart.substring(0, plusIdx)
+  } else {
+    // 检查是否有 " -" 时区偏移（但要确保不是日期中的 "-"）
+    const minusIdx = dateTimePart.lastIndexOf(' -')
+    if (minusIdx > 10) {
+      dateTimePart = dateTimePart.substring(0, minusIdx)
     }
   }
-  const match = value.match(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) ([+-]\d{4}) UTC$/)
-  if (match) {
-    const [, day, time, zone] = match
-    const zoneFormatted = `${zone.slice(0, 3)}:${zone.slice(3)}`
-    const parsed = new Date(`${day}T${time}${zoneFormatted}`)
-    if (!Number.isNaN(parsed.getTime())) {
-      return parsed
-    }
+  
+  // 处理标准格式 "2025-12-19 23:49:44"（当作本地时间）
+  const localMatch = dateTimePart.match(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})$/)
+  if (localMatch) {
+    const [, day, time] = localMatch
+    // 使用 new Date(year, month, day, hour, min, sec) 构造本地时间
+    const [year, month, dayNum] = day.split('-').map(Number)
+    const [hour, min, sec] = time.split(':').map(Number)
+    return new Date(year, month - 1, dayNum, hour, min, sec)
   }
+  
+  // 尝试只有日期的格式
+  const dateOnlyMatch = dateTimePart.match(/^(\d{4}-\d{2}-\d{2})$/)
+  if (dateOnlyMatch) {
+    const [year, month, dayNum] = dateTimePart.split('-').map(Number)
+    return new Date(year, month - 1, dayNum, 0, 0, 0)
+  }
+  
   return null
 }
 

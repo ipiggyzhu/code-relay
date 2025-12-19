@@ -56,7 +56,7 @@ func providerFilePath(kind string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Join(home, ".code-switch")
+	dir := filepath.Join(home, ".code-relay")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
@@ -292,6 +292,78 @@ func matchWildcard(pattern, text string) bool {
 
 	// 多个 * 的情况（更复杂，暂不支持）
 	return false
+}
+
+// DisableProvider 禁用指定的供应商
+// 返回是否成功禁用
+func (ps *ProviderService) DisableProvider(kind string, providerName string) error {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
+	providers, err := ps.loadProvidersInternal(kind)
+	if err != nil {
+		return err
+	}
+
+	found := false
+	for i := range providers {
+		if providers[i].Name == providerName {
+			providers[i].Enabled = false
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("provider not found: %s", providerName)
+	}
+
+	return ps.saveProvidersInternal(kind, providers)
+}
+
+// loadProvidersInternal 内部加载方法（不加锁）
+func (ps *ProviderService) loadProvidersInternal(kind string) ([]Provider, error) {
+	path, err := providerFilePath(kind)
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var envelope providerEnvelope
+	if len(data) == 0 {
+		return []Provider{}, nil
+	}
+
+	if err := json.Unmarshal(data, &envelope); err != nil {
+		return nil, err
+	}
+	return envelope.Providers, nil
+}
+
+// saveProvidersInternal 内部保存方法（不加锁）
+func (ps *ProviderService) saveProvidersInternal(kind string, providers []Provider) error {
+	path, err := providerFilePath(kind)
+	if err != nil {
+		return err
+	}
+
+	data, err := json.MarshalIndent(providerEnvelope{Providers: providers}, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }
 
 // applyWildcardMapping 应用通配符映射

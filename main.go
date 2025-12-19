@@ -68,11 +68,11 @@ func main() {
 		log.Printf("failed to initialize SuiStore: %v", errt)
 	}
 	providerService := services.NewProviderService()
-	providerRelay := services.NewProviderRelayService(providerService, ":18100")
+	logService := services.NewLogService()
+	providerRelay := services.NewProviderRelayService(providerService, logService, ":18100")
 	commonConfigService := services.NewCommonConfigService()
 	claudeSettings := services.NewClaudeSettingsService(providerRelay.Addr(), commonConfigService)
 	codexSettings := services.NewCodexSettingsService(providerRelay.Addr(), commonConfigService)
-	logService := services.NewLogService()
 	autoStartService := services.NewAutoStartService()
 	appSettings := services.NewAppSettingsService(autoStartService)
 	mcpService := services.NewMCPService()

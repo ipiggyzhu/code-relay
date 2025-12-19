@@ -33,6 +33,7 @@ func (ls *LogService) ListRequestLogs(platform string, provider string, limit in
 	if limit > 1000 {
 		limit = 1000
 	}
+	
 	model := xdb.New("request_log")
 	options := []xdb.Option{
 		xdb.OrderByDesc("id"),
@@ -46,6 +47,10 @@ func (ls *LogService) ListRequestLogs(platform string, provider string, limit in
 	}
 	records, err := model.Selects(options...)
 	if err != nil {
+		// 处理表不存在或其他错误
+		if errors.Is(err, xdb.ErrNotFound) || isNoSuchTableErr(err) {
+			return []ReqeustLog{}, nil
+		}
 		return nil, err
 	}
 	logs := make([]ReqeustLog, 0, len(records))
@@ -83,6 +88,9 @@ func (ls *LogService) ListProviders(platform string) ([]string, error) {
 	}
 	records, err := model.Selects(options...)
 	if err != nil {
+		if errors.Is(err, xdb.ErrNotFound) || isNoSuchTableErr(err) {
+			return []string{}, nil
+		}
 		return nil, err
 	}
 	providers := make([]string, 0, len(records))
@@ -303,6 +311,7 @@ func (ls *LogService) ProviderDailyStats(platform string) ([]ProviderDailyStat, 
 	start := startOfDay(time.Now())
 	end := start.Add(24 * time.Hour)
 	queryStart := start.Add(-24 * time.Hour)
+
 	model := xdb.New("request_log")
 	options := []xdb.Option{
 		xdb.WhereGte("created_at", queryStart.Format(timeLayout)),
@@ -328,6 +337,7 @@ func (ls *LogService) ProviderDailyStats(platform string) ([]ProviderDailyStat, 
 		}
 		return nil, err
 	}
+
 	statMap := map[string]*ProviderDailyStat{}
 	for _, record := range records {
 		provider := strings.TrimSpace(record.GetString("provider"))
@@ -335,6 +345,7 @@ func (ls *LogService) ProviderDailyStats(platform string) ([]ProviderDailyStat, 
 			provider = "(unknown)"
 		}
 		createdAt, hasTime := parseCreatedAt(record)
+
 		if hasTime {
 			if createdAt.Before(start) || !createdAt.Before(end) {
 				continue
@@ -377,6 +388,7 @@ func (ls *LogService) ProviderDailyStats(platform string) ([]ProviderDailyStat, 
 		stat.CacheReadTokens += int64(cacheRead)
 		stat.CostTotal += cost.TotalCost
 	}
+	
 	stats := make([]ProviderDailyStat, 0, len(statMap))
 	for _, stat := range statMap {
 		if stat.TotalRequests > 0 {
@@ -390,6 +402,7 @@ func (ls *LogService) ProviderDailyStats(platform string) ([]ProviderDailyStat, 
 		}
 		return stats[i].TotalRequests > stats[j].TotalRequests
 	})
+
 	return stats, nil
 }
 
@@ -422,40 +435,38 @@ func (ls *LogService) calculateCost(model string, usage modelpricing.UsageSnapsh
 }
 
 func parseCreatedAt(record xdb.Record) (time.Time, bool) {
-	if t := record.GetTime("created_at"); t != nil {
-		return t.In(time.Local), true
-	}
 	raw := strings.TrimSpace(record.GetString("created_at"))
 	if raw == "" {
 		return time.Time{}, false
 	}
 
-	layouts := []string{
-		timeLayout,
-		time.RFC3339,
-		"2006-01-02T15:04:05",
-		"2006-01-02 15:04:05 -0700",
-		"2006-01-02 15:04:05 -0700 MST",
-		"2006-01-02 15:04:05 MST",
-		"2006-01-02T15:04:05-0700",
-	}
-	for _, layout := range layouts {
-		if parsed, err := time.Parse(layout, raw); err == nil {
-			return parsed.In(time.Local), true
-		}
-		if parsed, err := time.ParseInLocation(layout, raw, time.Local); err == nil {
-			return parsed.In(time.Local), true
-		}
+	// 提取日期时间部分（去掉任何时区后缀）
+	// xdb/SQLite 返回的格式可能是：
+	// - "2025-12-19 23:49:00" (纯本地时间)
+	// - "2025-12-19 23:49:00 +0000 UTC" (xdb 自动添加的 UTC 后缀，但实际是本地时间)
+	dateTimePart := raw
+
+	// 移除 " +0000 UTC" 或类似的时区后缀
+	if idx := strings.Index(raw, " +"); idx > 0 {
+		dateTimePart = raw[:idx]
+	} else if idx := strings.Index(raw, " -"); idx > 0 && idx > 10 {
+		// 确保不是日期中的 "-"，只匹配时区偏移
+		dateTimePart = raw[:idx]
 	}
 
-	if normalized := strings.Replace(raw, " ", "T", 1); normalized != raw {
-		if parsed, err := time.Parse(time.RFC3339, normalized); err == nil {
-			return parsed.In(time.Local), true
-		}
+	// 尝试解析标准格式 "2006-01-02 15:04:05"
+	if parsed, err := time.ParseInLocation(timeLayout, dateTimePart, time.Local); err == nil {
+		return parsed, true
 	}
 
-	if len(raw) >= len("2006-01-02") {
-		if parsed, err := time.ParseInLocation("2006-01-02", raw[:10], time.Local); err == nil {
+	// 尝试 ISO 格式 "2006-01-02T15:04:05"
+	if parsed, err := time.ParseInLocation("2006-01-02T15:04:05", dateTimePart, time.Local); err == nil {
+		return parsed, true
+	}
+
+	// 尝试只有日期的格式
+	if len(dateTimePart) >= 10 {
+		if parsed, err := time.ParseInLocation("2006-01-02", dateTimePart[:10], time.Local); err == nil {
 			return parsed, false
 		}
 	}
@@ -489,6 +500,57 @@ func isNoSuchTableErr(err error) bool {
 		return false
 	}
 	return strings.Contains(err.Error(), "no such table")
+}
+
+// GetProviderSuccessRate 获取指定供应商的成功率
+// 返回成功率（0-1）和总请求数
+func (ls *LogService) GetProviderSuccessRate(platform string, providerName string) (float64, int64, error) {
+	if providerName == "" {
+		return 0, 0, nil
+	}
+
+	// 查询今天的数据
+	start := startOfDay(time.Now())
+	
+	model := xdb.New("request_log")
+	options := []xdb.Option{
+		xdb.WhereGte("created_at", start.Format(timeLayout)),
+		xdb.WhereEq("provider", providerName),
+		xdb.Field("http_code"),
+	}
+	if platform != "" {
+		options = append(options, xdb.WhereEq("platform", platform))
+	}
+	
+	records, err := model.Selects(options...)
+	if err != nil {
+		if errors.Is(err, xdb.ErrNotFound) || isNoSuchTableErr(err) {
+			return 0, 0, nil
+		}
+		return 0, 0, err
+	}
+
+	if len(records) == 0 {
+		return 0, 0, nil
+	}
+
+	var totalRequests int64
+	var successfulRequests int64
+	
+	for _, record := range records {
+		totalRequests++
+		httpCode := record.GetInt("http_code")
+		if httpCode >= 200 && httpCode < 300 {
+			successfulRequests++
+		}
+	}
+
+	if totalRequests == 0 {
+		return 0, 0, nil
+	}
+
+	successRate := float64(successfulRequests) / float64(totalRequests)
+	return successRate, totalRequests, nil
 }
 
 type HeatmapStat struct {

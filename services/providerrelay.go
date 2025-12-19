@@ -11,11 +11,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/daodao97/xgo/xdb"
-	"github.com/daodao97/xgo/xlog"
-	"github.com/daodao97/xgo/xrequest"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -24,46 +23,82 @@ import (
 
 type ProviderRelayService struct {
 	providerService *ProviderService
+	logService      *LogService
 	server          *http.Server
 	addr            string
+	
+	// 记录每个供应商上次被禁用/启用时的请求数
+	// key: "platform:providerName", value: 上次检查时的请求数
+	lastCheckRequests map[string]int64
+	lastCheckMu       sync.Mutex
 }
 
-func NewProviderRelayService(providerService *ProviderService, addr string) *ProviderRelayService {
+// 自动禁用阈值
+const (
+	AutoDisableSuccessRateThreshold = 0.80 // 成功率低于80%时自动禁用
+	AutoDisableMinNewRequests       = 5    // 手动启用后至少5个新请求才重新检查
+)
+
+func NewProviderRelayService(providerService *ProviderService, logService *LogService, addr string) *ProviderRelayService {
 	if addr == "" {
 		addr = ":18100"
 	}
 
 	home, _ := os.UserHomeDir()
+	dataDir := filepath.Join(home, ".code-relay")
+	
+	// 确保数据目录存在
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+		log.Printf("创建数据目录失败: %v", err)
+	}
+	
 	const sqliteOptions = "?cache=shared&mode=rwc&_busy_timeout=5000&_journal_mode=WAL"
 
+	dbPath := filepath.Join(dataDir, "app.db"+sqliteOptions)
+	log.Printf("[DB] 初始化数据库: %s", dbPath)
+	
 	if err := xdb.Inits([]xdb.Config{
 		{
 			Name:        "default",
 			Driver:      "sqlite",
-			DSN:         filepath.Join(home, ".code-switch", "app.db"+sqliteOptions),
-			MaxOpenConn: 1,
-			MaxIdleConn: 1,
+			DSN:         dbPath,
+			MaxOpenConn: 5,  // 增加连接数
+			MaxIdleConn: 2,
 		},
 	}); err != nil {
-		log.Printf("初始化数据库失败: %v", err)
+		log.Printf("[DB] 初始化数据库失败: %v", err)
 	} else if err := ensureRequestLogTable(); err != nil {
-		log.Printf("初始化 request_log 表失败: %v", err)
+		log.Printf("[DB] 初始化 request_log 表失败: %v", err)
+	} else {
+		log.Printf("[DB] 数据库初始化成功")
 	}
 
 	return &ProviderRelayService{
-		providerService: providerService,
-		addr:            addr,
+		providerService:   providerService,
+		logService:        logService,
+		addr:              addr,
+		lastCheckRequests: make(map[string]int64),
 	}
 }
 
 func (prs *ProviderRelayService) Start() error {
-	// 启动前验证配置（静默，不输出到控制台）
-	_ = prs.validateConfig()
+	// 启动前验证配置
+	warnings := prs.validateConfig()
+	for _, w := range warnings {
+		log.Printf("[Relay] 配置警告: %s", w)
+	}
 
 	// 生产模式：禁用 GIN 控制台输出
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(gin.Recovery())
+	
+	// 添加请求日志中间件
+	router.Use(func(c *gin.Context) {
+		log.Printf("[Relay] 中间件: 收到 %s %s", c.Request.Method, c.Request.URL.Path)
+		c.Next()
+	})
+	
 	prs.registerRoutes(router)
 
 	prs.server = &http.Server{
@@ -71,9 +106,15 @@ func (prs *ProviderRelayService) Start() error {
 		Handler: router,
 	}
 
+	log.Printf("[Relay] ========================================")
+	log.Printf("[Relay] 代理服务启动中，监听地址: %s", prs.addr)
+	log.Printf("[Relay] Claude API: http://127.0.0.1%s/v1/messages", prs.addr)
+	log.Printf("[Relay] Codex API: http://127.0.0.1%s/responses", prs.addr)
+	log.Printf("[Relay] ========================================")
+
 	go func() {
 		if err := prs.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("provider relay server error: %v", err)
+			log.Printf("[Relay] 服务器错误: %v", err)
 		}
 	}()
 	return nil
@@ -142,10 +183,15 @@ func (prs *ProviderRelayService) registerRoutes(router gin.IRouter) {
 
 func (prs *ProviderRelayService) proxyHandler(kind string, endpoint string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		log.Printf("[Relay] ========== 收到请求 ==========")
+		log.Printf("[Relay] 请求路径: %s %s", c.Request.Method, c.Request.URL.Path)
+		log.Printf("[Relay] 客户端: %s", c.ClientIP())
+		
 		var bodyBytes []byte
 		if c.Request.Body != nil {
 			data, err := io.ReadAll(c.Request.Body)
 			if err != nil {
+				log.Printf("[Relay] 读取请求体失败: %v", err)
 				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 				return
 			}
@@ -155,60 +201,96 @@ func (prs *ProviderRelayService) proxyHandler(kind string, endpoint string) gin.
 
 		isStream := gjson.GetBytes(bodyBytes, "stream").Bool()
 		requestedModel := gjson.GetBytes(bodyBytes, "model").String()
-
-		// 如果未指定模型，静默处理
-		if requestedModel == "" {
-			// 无法执行模型智能降级，但不阻塞请求
-		}
+		
+		log.Printf("[Relay] 请求模型: %s, 流式: %v, 请求体大小: %d bytes", requestedModel, isStream, len(bodyBytes))
 
 		providers, err := prs.providerService.LoadProviders(kind)
 		if err != nil {
+			log.Printf("[Relay] 加载 providers 失败: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load providers"})
 			return
 		}
+		
+		log.Printf("[Relay] 加载到 %d 个 providers", len(providers))
 
 		active := make([]Provider, 0, len(providers))
-		skippedCount := 0
 		for _, provider := range providers {
 			// 基础过滤：enabled、URL、APIKey
-			if !provider.Enabled || provider.APIURL == "" || provider.APIKey == "" {
+			if !provider.Enabled {
+				log.Printf("[Relay] 跳过 provider %s: 未启用", provider.Name)
+				continue
+			}
+			if provider.APIURL == "" {
+				log.Printf("[Relay] 跳过 provider %s: 无 API URL", provider.Name)
+				continue
+			}
+			if provider.APIKey == "" {
+				log.Printf("[Relay] 跳过 provider %s: 无 API Key", provider.Name)
 				continue
 			}
 
 			// 配置验证：失败则自动跳过
 			if errs := provider.ValidateConfiguration(); len(errs) > 0 {
-				skippedCount++
+				log.Printf("[Relay] 跳过 provider %s: 配置验证失败 %v", provider.Name, errs)
 				continue
 			}
 
 			// 核心过滤：只保留支持请求模型的 provider
 			if requestedModel != "" && !provider.IsModelSupported(requestedModel) {
-				skippedCount++
+				log.Printf("[Relay] 跳过 provider %s: 不支持模型 %s", provider.Name, requestedModel)
 				continue
 			}
 
+			log.Printf("[Relay] 添加 provider: %s", provider.Name)
 			active = append(active, provider)
 		}
+		
+		log.Printf("[Relay] 可用 providers: %d 个", len(active))
 
 		if len(active) == 0 {
+			// 记录 404 错误日志
+			go func() {
+				if _, err := xdb.New("request_log").Insert(xdb.Record{
+					"platform":   kind,
+					"model":      requestedModel,
+					"provider":   "",
+					"http_code":  http.StatusNotFound,
+					"created_at": time.Now().Format("2006-01-02 15:04:05"),
+				}); err != nil {
+					// 静默处理
+				}
+			}()
+			
+			// 返回符合 Anthropic API 格式的错误响应
+			message := "no providers available"
 			if requestedModel != "" {
-				c.JSON(http.StatusNotFound, gin.H{
-					"error": "没有可用的 provider 支持模型 '" + requestedModel + "'",
-				})
-			} else {
-				c.JSON(http.StatusNotFound, gin.H{"error": "no providers available"})
+				message = "没有可用的 provider 支持模型 '" + requestedModel + "'"
 			}
+			log.Printf("[Relay] 没有可用 provider: %s", message)
+			c.Header("Content-Type", "application/json")
+			c.JSON(http.StatusNotFound, gin.H{
+				"type": "error",
+				"error": gin.H{
+					"type":    "not_found_error",
+					"message": message,
+				},
+			})
+			c.Writer.Flush()
 			return
 		}
 
 		query := flattenQuery(c.Request.URL.Query())
 		clientHeaders := cloneHeaders(c.Request.Header)
 
+		totalProviders := len(active)
 		var lastErr error
-		attemptCount := 0
-		for _, provider := range active {
-			attemptCount++
-
+		var lastStatus int
+		var lastBody []byte
+		var lastHeaders http.Header
+		
+		for i, provider := range active {
+			isLastProvider := (i == totalProviders - 1)
+			
 			effectiveModel := provider.GetEffectiveModel(requestedModel)
 
 			currentBodyBytes := bodyBytes
@@ -216,29 +298,100 @@ func (prs *ProviderRelayService) proxyHandler(kind string, endpoint string) gin.
 				modifiedBody, err := ReplaceModelInRequestBody(bodyBytes, effectiveModel)
 				if err != nil {
 					lastErr = err
+					log.Printf("[Relay] 替换模型失败: %v", err)
 					continue
 				}
 				currentBodyBytes = modifiedBody
 			}
 
-			ok, err := prs.forwardRequest(c, kind, provider, endpoint, query, clientHeaders, currentBodyBytes, isStream, effectiveModel)
+			status, headers, body, err := prs.forwardRequest(c, kind, provider, endpoint, query, clientHeaders, currentBodyBytes, isStream, effectiveModel)
 
-			if ok {
+			if err != nil {
+				log.Printf("[Relay] Provider %s 请求失败: %v", provider.Name, err)
+				lastErr = err
+				continue
+			}
+
+			// 保存最后一次响应
+			lastStatus = status
+			lastHeaders = headers
+			lastBody = body
+
+			// 如果成功 (2xx)，立即返回
+			if status >= 200 && status < 300 {
+				log.Printf("[Relay] Provider %s 成功, status=%d", provider.Name, status)
+				prs.writeResponse(c, status, headers, body)
 				return
 			}
 
-			lastErr = err
+			// 如果失败但是最后一个 provider，返回错误响应
+			if isLastProvider {
+				log.Printf("[Relay] 最后一个 provider %s 失败, status=%d, 返回错误给客户端", provider.Name, status)
+				prs.writeResponse(c, status, headers, body)
+				return
+			}
+
+			// 如果失败且还有其他 provider，继续尝试
+			log.Printf("[Relay] Provider %s 失败, status=%d, 尝试下一个 provider", provider.Name, status)
 		}
 
+		// 如果所有 provider 都失败了（可能是网络错误等）
+		if lastBody != nil {
+			// 返回最后一个 provider 的响应
+			prs.writeResponse(c, lastStatus, lastHeaders, lastBody)
+			return
+		}
+
+		// 如果连响应都没有（所有请求都失败了）
 		message := "所有 provider 均失败"
 		if lastErr != nil {
 			message = message + ": " + lastErr.Error()
 		}
-		xlog.Error("all is error")
-		c.JSON(http.StatusBadRequest, gin.H{"error": message})
+		log.Printf("[Relay] 所有 provider 失败: %s", message)
+		
+		// 返回符合 Anthropic API 格式的错误响应
+		c.Header("Content-Type", "application/json")
+		c.JSON(http.StatusBadGateway, gin.H{
+			"type": "error",
+			"error": gin.H{
+				"type":    "api_error",
+				"message": message,
+			},
+		})
+		c.Writer.Flush()
 	}
 }
 
+// writeResponse 将响应写入客户端
+func (prs *ProviderRelayService) writeResponse(c *gin.Context, status int, headers http.Header, body []byte) {
+	for k, vv := range headers {
+		for _, v := range vv {
+			c.Writer.Header().Add(k, v)
+		}
+	}
+	c.Writer.WriteHeader(status)
+	if _, err := c.Writer.Write(body); err != nil {
+		log.Printf("[Relay] 写入客户端失败: %v", err)
+	}
+	if flusher, ok := c.Writer.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
+// httpClient 用于转发请求，支持长连接和流式响应
+var httpClient = &http.Client{
+	Timeout: 0, // 不设置超时，让流式响应可以持续
+	Transport: &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
+	},
+}
+
+// forwardRequest 转发请求到上游 provider
+// 返回值: (状态码, 响应头, 响应体, 错误)
+// - 返回响应数据，由调用者决定是否写入客户端
+// - 如果发生网络错误，返回 error，调用者可以尝试下一个 provider
 func (prs *ProviderRelayService) forwardRequest(
 	c *gin.Context,
 	kind string,
@@ -249,12 +402,16 @@ func (prs *ProviderRelayService) forwardRequest(
 	bodyBytes []byte,
 	isStream bool,
 	model string,
-) (bool, error) {
+) (int, http.Header, []byte, error) {
 	targetURL := joinURL(provider.APIURL, endpoint)
-	headers := cloneMap(clientHeaders)
-	headers["Authorization"] = fmt.Sprintf("Bearer %s", provider.APIKey)
-	if _, ok := headers["Accept"]; !ok {
-		headers["Accept"] = "application/json"
+	
+	// 构建查询参数
+	if len(query) > 0 {
+		params := make([]string, 0, len(query))
+		for k, v := range query {
+			params = append(params, fmt.Sprintf("%s=%s", k, v))
+		}
+		targetURL = targetURL + "?" + strings.Join(params, "&")
 	}
 
 	requestLog := &ReqeustLog{
@@ -264,58 +421,153 @@ func (prs *ProviderRelayService) forwardRequest(
 		IsStream: isStream,
 	}
 	start := time.Now()
-	defer func() {
+	
+	// 写入日志的函数
+	writeLog := func() {
 		requestLog.DurationSec = time.Since(start).Seconds()
-		// 异步写入数据库，不阻塞响应
-		go func(log *ReqeustLog) {
+		go func(rl *ReqeustLog) {
 			if _, err := xdb.New("request_log").Insert(xdb.Record{
-				"platform":            log.Platform,
-				"model":               log.Model,
-				"provider":            log.Provider,
-				"http_code":           log.HttpCode,
-				"input_tokens":        log.InputTokens,
-				"output_tokens":       log.OutputTokens,
-				"cache_create_tokens": log.CacheCreateTokens,
-				"cache_read_tokens":   log.CacheReadTokens,
-				"reasoning_tokens":    log.ReasoningTokens,
-				"is_stream":           boolToInt(log.IsStream),
-				"duration_sec":        log.DurationSec,
-				"created_at":          time.Now().Format("2006-01-02 15:04:05"), // 使用本地时间
+				"platform":            rl.Platform,
+				"model":               rl.Model,
+				"provider":            rl.Provider,
+				"http_code":           rl.HttpCode,
+				"input_tokens":        rl.InputTokens,
+				"output_tokens":       rl.OutputTokens,
+				"cache_create_tokens": rl.CacheCreateTokens,
+				"cache_read_tokens":   rl.CacheReadTokens,
+				"reasoning_tokens":    rl.ReasoningTokens,
+				"is_stream":           boolToInt(rl.IsStream),
+				"duration_sec":        rl.DurationSec,
+				"created_at":          time.Now().Format("2006-01-02 15:04:05"),
 			}); err != nil {
-				// 静默处理，避免日志刷屏
+				log.Printf("[Relay] 写入日志失败: %v", err)
 			}
 		}(requestLog)
-	}()
+	}
 
-	req := xrequest.New().
-		SetHeaders(headers).
-		SetQueryParams(query)
-
-	reqBody := bytes.NewReader(bodyBytes)
-	req = req.SetBody(reqBody)
-
-	resp, err := req.Post(targetURL)
+	// 创建请求
+	req, err := http.NewRequest("POST", targetURL, bytes.NewReader(bodyBytes))
 	if err != nil {
-		return false, err
+		log.Printf("[Relay] 创建请求失败: %v", err)
+		requestLog.HttpCode = 0
+		writeLog()
+		return 0, nil, nil, err
 	}
 
-	if resp == nil {
-		return false, fmt.Errorf("empty response")
+	// 设置请求头
+	for k, v := range clientHeaders {
+		req.Header.Set(k, v)
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", provider.APIKey))
+	if req.Header.Get("Content-Type") == "" {
+		req.Header.Set("Content-Type", "application/json")
 	}
 
-	if resp.Error() != nil {
-		return false, resp.Error()
+	log.Printf("[Relay] 转发请求到 %s, model=%s, stream=%v", targetURL, model, isStream)
+	
+	// 发送请求
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		log.Printf("[Relay] 请求失败: %v", err)
+		requestLog.HttpCode = 0
+		writeLog()
+		return 0, nil, nil, err
 	}
+	defer resp.Body.Close()
 
-	status := resp.StatusCode()
+	status := resp.StatusCode
 	requestLog.HttpCode = status
+	log.Printf("[Relay] 收到响应, status=%d, content-type=%s", status, resp.Header.Get("Content-Type"))
 
-	if status >= http.StatusOK && status < http.StatusMultipleChoices {
-		_, copyErr := resp.ToHttpResponseWriter(c.Writer, ReqeustLogHook(c, kind, requestLog))
-		return copyErr == nil, copyErr
+	// 读取响应体（不管成功还是失败都需要读取）
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("[Relay] 读取响应体失败: %v", err)
+		requestLog.HttpCode = 0
+		writeLog()
+		return 0, nil, nil, err
 	}
 
-	return false, fmt.Errorf("upstream status %d", status)
+	// 解析 token 用量
+	parseEventPayload(string(body), getTokenParser(kind), requestLog)
+
+	log.Printf("[Relay] 转发完成, status=%d, body_size=%d, tokens: in=%d, out=%d", 
+		status, len(body), requestLog.InputTokens, requestLog.OutputTokens)
+
+	writeLog()
+	
+	// 异步检查成功率，如果低于阈值则自动禁用
+	go prs.checkAndAutoDisable(kind, provider.Name)
+	
+	// 返回响应数据，由调用者决定如何处理
+	return status, resp.Header, body, nil
+}
+
+func getTokenParser(kind string) func(string, *ReqeustLog) {
+	if kind == "codex" {
+		return CodexParseTokenUsageFromResponse
+	}
+	return ClaudeCodeParseTokenUsageFromResponse
+}
+
+// checkAndAutoDisable 检查供应商成功率，如果低于阈值则自动禁用
+// 逻辑：只有当自上次检查后新增了至少5个请求，才重新检查成功率
+func (prs *ProviderRelayService) checkAndAutoDisable(kind string, providerName string) {
+	if prs.logService == nil || prs.providerService == nil {
+		return
+	}
+
+	// 获取成功率和总请求数
+	successRate, totalRequests, err := prs.logService.GetProviderSuccessRate(kind, providerName)
+	if err != nil {
+		log.Printf("[Relay] 获取供应商 %s 成功率失败: %v", providerName, err)
+		return
+	}
+
+	// 构建 key
+	key := kind + ":" + providerName
+	
+	prs.lastCheckMu.Lock()
+	lastCheck, exists := prs.lastCheckRequests[key]
+	// 如果是第一次检查这个供应商，以当前请求数为基准
+	// 这样重启后不会立即禁用，需要等新增5个请求
+	if !exists {
+		prs.lastCheckRequests[key] = totalRequests
+		prs.lastCheckMu.Unlock()
+		log.Printf("[Relay] 初始化供应商 %s 检查基准: %d 个请求", providerName, totalRequests)
+		return
+	}
+	prs.lastCheckMu.Unlock()
+
+	// 计算自上次检查后的新请求数
+	newRequests := totalRequests - lastCheck
+	
+	// 新请求数不足，不检查
+	if newRequests < AutoDisableMinNewRequests {
+		return
+	}
+
+	// 成功率高于阈值，更新检查点但不禁用
+	if successRate >= AutoDisableSuccessRateThreshold {
+		prs.lastCheckMu.Lock()
+		prs.lastCheckRequests[key] = totalRequests
+		prs.lastCheckMu.Unlock()
+		return
+	}
+
+	// 成功率低于阈值，自动禁用
+	log.Printf("[Relay] ⚠️ 供应商 %s 成功率 %.1f%% 低于阈值 %.0f%%（新请求数: %d），自动禁用", 
+		providerName, successRate*100, AutoDisableSuccessRateThreshold*100, newRequests)
+	
+	if err := prs.providerService.DisableProvider(kind, providerName); err != nil {
+		log.Printf("[Relay] 自动禁用供应商 %s 失败: %v", providerName, err)
+	} else {
+		log.Printf("[Relay] ✅ 供应商 %s 已自动禁用，请手动检查后重新启用", providerName)
+		// 记录禁用时的请求数，下次启用后需要再累积5个新请求才会重新检查
+		prs.lastCheckMu.Lock()
+		prs.lastCheckRequests[key] = totalRequests
+		prs.lastCheckMu.Unlock()
+	}
 }
 
 func cloneHeaders(header http.Header) map[string]string {

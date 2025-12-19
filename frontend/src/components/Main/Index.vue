@@ -952,7 +952,8 @@ const loadProviderStats = async (tab: ProviderTab) => {
     const stats = await fetchProviderDailyStats(tab)
     const mapped: Record<string, ProviderDailyStat> = {}
     ;(stats ?? []).forEach((stat) => {
-      mapped[normalizeProviderKey(stat.provider)] = stat
+      const key = normalizeProviderKey(stat.provider)
+      mapped[key] = stat
     })
     const hadExistingStats = Object.keys(providerStatsMap[tab] ?? {}).length > 0
     if ((stats?.length ?? 0) > 0) {
@@ -1009,7 +1010,8 @@ const providerStatDisplay = (providerName: string): ProviderStatDisplay => {
   if (!providerStatsLoaded[tab]) {
     return { state: 'loading', message: t('components.main.providers.loading') }
   }
-  const stat = providerStatsMap[tab]?.[normalizeProviderKey(providerName)]
+  const key = normalizeProviderKey(providerName)
+  const stat = providerStatsMap[tab]?.[key]
   if (!stat) {
     return { state: 'empty', message: t('components.main.providers.noData') }
   }
@@ -1060,8 +1062,35 @@ const startProviderStatsTimer = () => {
   providerStatsTimer = window.setInterval(() => {
     providerTabIds.forEach((tab) => {
       void loadProviderStats(tab)
+      void refreshProviderEnabledState(tab)
     })
   }, 5_000) // 5秒刷新一次，更实时
+}
+
+// 刷新 provider 的 enabled 状态（用于检测后端自动禁用）
+const refreshProviderEnabledState = async (tab: ProviderTab) => {
+  try {
+    const saved = await LoadProviders(tab)
+    if (!Array.isArray(saved)) return
+    
+    const currentCards = cards[tab]
+    let hasChanges = false
+    
+    // 检查每个 provider 的 enabled 状态是否变化
+    for (const savedProvider of saved) {
+      const current = currentCards.find(p => p.name === savedProvider.name)
+      if (current && current.enabled !== savedProvider.enabled) {
+        current.enabled = savedProvider.enabled
+        hasChanges = true
+      }
+    }
+    
+    if (hasChanges) {
+      console.log(`[${tab}] Provider enabled state updated from backend`)
+    }
+  } catch (error) {
+    // 静默处理错误
+  }
 }
 
 const stopProviderStatsTimer = () => {

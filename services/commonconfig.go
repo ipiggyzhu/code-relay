@@ -26,7 +26,7 @@ func (ccs *CommonConfigService) getConfigPath(kind string) (string, error) {
 		return "", err
 	}
 
-	dir := filepath.Join(home, ".code-switch")
+	dir := filepath.Join(home, ".code-relay")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
