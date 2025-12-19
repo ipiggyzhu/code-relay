@@ -193,32 +193,36 @@ func (us *UpdateService) GetCurrentExePath() (string, error) {
 
 // createUpdateScript 创建 Windows 更新批处理脚本
 func (us *UpdateService) createUpdateScript(currentExe, newExe string) string {
+	exeName := filepath.Base(currentExe)
 	// 批处理脚本：等待程序退出 -> 替换文件 -> 重启程序
 	return fmt.Sprintf(`@echo off
 chcp 65001 >nul
 echo 正在更新 Code Relay...
 echo 等待程序退出...
-timeout /t 2 /nobreak >nul
+timeout /t 3 /nobreak >nul
 
 :waitloop
-tasklist /FI "IMAGENAME eq %s" 2>NUL | find /I /N "%s" >NUL
-if "%%ERRORLEVEL%%"=="0" (
-    timeout /t 1 /nobreak >nul
+tasklist /FI "IMAGENAME eq %s" 2>NUL | find /I "%s" >NUL
+if not errorlevel 1 (
+    echo 等待程序关闭...
+    timeout /t 2 /nobreak >nul
     goto waitloop
 )
 
 echo 正在替换文件...
 copy /Y "%s" "%s"
 if errorlevel 1 (
-    echo 更新失败！
+    echo 更新失败！请手动替换文件。
+    echo 新文件位置: %s
     pause
     exit /b 1
 )
 
 echo 更新完成，正在重启...
+timeout /t 1 /nobreak >nul
 start "" "%s"
-del "%%~f0"
-`, filepath.Base(currentExe), filepath.Base(currentExe), newExe, currentExe, currentExe)
+exit /b 0
+`, exeName, exeName, newExe, currentExe, newExe, currentExe)
 }
 
 // findPlatformAsset 查找对应平台的资源文件

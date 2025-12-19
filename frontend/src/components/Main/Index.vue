@@ -594,7 +594,7 @@
 import { computed, reactive, ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/vue'
-import { Browser } from '@wailsio/runtime'
+import { Browser, Application } from '@wailsio/runtime'
 import {
 	buildUsageHeatmapMatrix,
 	generateFallbackUsageHeatmap,
@@ -809,8 +809,10 @@ const handleInstallUpdate = async () => {
   try {
     const success = await installUpdate(updateModalState.downloadedPath)
     if (success) {
-      // 安装脚本已启动，关闭应用
-      window.close()
+      // 安装脚本已启动，等待一下然后退出应用
+      setTimeout(() => {
+        Application.Quit()
+      }, 500)
     } else {
       updateModalState.error = t('components.main.update.installFailed')
     }
