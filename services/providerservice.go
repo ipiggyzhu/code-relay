@@ -41,11 +41,14 @@ type providerEnvelope struct {
 }
 
 type ProviderService struct {
-	mu sync.Mutex
+	mu    sync.RWMutex
+	cache map[string][]Provider
 }
 
 func NewProviderService() *ProviderService {
-	return &ProviderService{}
+	return &ProviderService{
+		cache: make(map[string][]Provider),
+	}
 }
 
 func (ps *ProviderService) Start() error { return nil }
@@ -81,7 +84,7 @@ func (ps *ProviderService) SaveProviders(kind string, providers []Provider) erro
 		return err
 	}
 
-	existingProviders, err := ps.LoadProviders(kind)
+	existingProviders, err := ps.loadProvidersInternal(kind)
 	if err != nil {
 		return err
 	}
@@ -120,32 +123,74 @@ func (ps *ProviderService) SaveProviders(kind string, providers []Provider) erro
 	if err := os.WriteFile(tmp, data, 0o644); err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	if err := os.Rename(tmp, path); err != nil {
+		return err
+	}
+
+	// 强制刷新缓存（使用副本以保证绝对隔离）
+	if ps.cache == nil {
+		ps.cache = make(map[string][]Provider)
+	}
+	ps.cache[strings.ToLower(kind)] = deepCopyProviders(providers)
+	return nil
 }
 
 func (ps *ProviderService) LoadProviders(kind string) ([]Provider, error) {
-	path, err := providerFilePath(kind)
+	kind = strings.ToLower(kind)
+	
+	// 1. 尝试从缓存读取
+	ps.mu.RLock()
+	providers, exists := ps.cache[kind]
+	ps.mu.RUnlock()
+	
+	if exists {
+		// 返回副本以防止外部意外修改（包括 Map 字段的深拷贝）
+		return deepCopyProviders(providers), nil
+	}
+
+	// 2. 缓存不存在，从磁盘加载并更新缓存
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	
+	// 双重检查
+	if providers, exists := ps.cache[kind]; exists {
+		return deepCopyProviders(providers), nil
+	}
+
+	providers, err := ps.loadProvidersInternal(kind)
 	if err != nil {
 		return nil, err
 	}
+	
+	if ps.cache == nil {
+		ps.cache = make(map[string][]Provider)
+	}
+	ps.cache[kind] = providers
 
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
+	// 返回副本以防止外部意外修改导致的 Data Race
+	return deepCopyProviders(providers), nil
+}
+
+// deepCopyProviders 执行 Provider 列表的深拷贝，确保 Map 字段也被独立复制
+func deepCopyProviders(src []Provider) []Provider {
+	dst := make([]Provider, len(src))
+	for i, p := range src {
+		dst[i] = p
+		// 深拷贝 Map 字段
+		if p.SupportedModels != nil {
+			dst[i].SupportedModels = make(map[string]bool)
+			for k, v := range p.SupportedModels {
+				dst[i].SupportedModels[k] = v
+			}
 		}
-		return nil, err
+		if p.ModelMapping != nil {
+			dst[i].ModelMapping = make(map[string]string)
+			for k, v := range p.ModelMapping {
+				dst[i].ModelMapping[k] = v
+			}
+		}
 	}
-
-	var envelope providerEnvelope
-	if len(data) == 0 {
-		return []Provider{}, nil
-	}
-
-	if err := json.Unmarshal(data, &envelope); err != nil {
-		return nil, err
-	}
-	return envelope.Providers, nil
+	return dst
 }
 
 // IsModelSupported 检查 provider 是否支持指定的模型
@@ -294,6 +339,8 @@ func matchWildcard(pattern, text string) bool {
 	return false
 }
 
+
+
 // DisableProvider 禁用指定的供应商
 // 返回是否成功禁用
 func (ps *ProviderService) DisableProvider(kind string, providerName string) error {
@@ -318,7 +365,16 @@ func (ps *ProviderService) DisableProvider(kind string, providerName string) err
 		return fmt.Errorf("provider not found: %s", providerName)
 	}
 
-	return ps.saveProvidersInternal(kind, providers)
+	if err := ps.saveProvidersInternal(kind, providers); err != nil {
+		return err
+	}
+	
+	// 更新缓存（使用深拷贝副本）
+	if ps.cache == nil {
+		ps.cache = make(map[string][]Provider)
+	}
+	ps.cache[strings.ToLower(kind)] = deepCopyProviders(providers)
+	return nil
 }
 
 // loadProvidersInternal 内部加载方法（不加锁）
@@ -384,8 +440,8 @@ func applyWildcardMapping(pattern, replacement, input string) string {
 
 	prefix, suffix := parts[0], parts[1]
 
-	// 验证 input 确实匹配 pattern
-	if !strings.HasPrefix(input, prefix) || !strings.HasSuffix(input, suffix) {
+	// 验证 input 确实匹配 pattern，且长度足以提取中间部分，防止切片越界
+	if len(input) < len(prefix)+len(suffix) || !strings.HasPrefix(input, prefix) || !strings.HasSuffix(input, suffix) {
 		return replacement
 	}
 

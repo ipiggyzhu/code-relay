@@ -19,7 +19,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, provide } from 'vue'
+import { computed, ref, provide, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import VChart, { THEME_KEY } from 'vue-echarts'
 import { use } from 'echarts/core'
@@ -41,14 +41,27 @@ use([
   LegendComponent,
   DataZoomComponent
 ])
-
-provide(THEME_KEY, 'light')
-
 const props = defineProps<{
   data: UsageHeatmapWeek[]
 }>()
 
 const { t } = useI18n()
+
+// 注入主题 key，根据 html.dark 类动态切换
+const isDark = ref(document.documentElement.classList.contains('dark'))
+const theme = computed(() => isDark.value ? 'dark' : 'light')
+provide(THEME_KEY, theme)
+
+// 监听主题变化
+const observer = new MutationObserver(() => {
+  isDark.value = document.documentElement.classList.contains('dark')
+})
+onMounted(() => {
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+})
+onUnmounted(() => {
+  observer.disconnect()
+})
 
 const colors = {
   requests: '#3b82f6',
@@ -306,7 +319,8 @@ const chartOption = computed(() => {
         splitLine: { show: false }
       }
     ],
-    series
+    series,
+    backgroundColor: 'transparent'
   }
 })
 </script>

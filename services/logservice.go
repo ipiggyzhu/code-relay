@@ -1,4 +1,4 @@
-package services
+﻿package services
 
 import (
 	"errors"
@@ -26,7 +26,7 @@ func NewLogService() *LogService {
 	return &LogService{pricing: svc}
 }
 
-func (ls *LogService) ListRequestLogs(platform string, provider string, limit int) ([]ReqeustLog, error) {
+func (ls *LogService) ListRequestLogs(platform string, provider string, limit int) ([]RequestLog, error) {
 	if limit <= 0 {
 		limit = 100
 	}
@@ -49,13 +49,13 @@ func (ls *LogService) ListRequestLogs(platform string, provider string, limit in
 	if err != nil {
 		// 处理表不存在或其他错误
 		if errors.Is(err, xdb.ErrNotFound) || isNoSuchTableErr(err) {
-			return []ReqeustLog{}, nil
+			return []RequestLog{}, nil
 		}
 		return nil, err
 	}
-	logs := make([]ReqeustLog, 0, len(records))
+	logs := make([]RequestLog, 0, len(records))
 	for _, record := range records {
-		logEntry := ReqeustLog{
+		logEntry := RequestLog{
 			ID:                record.GetInt64("id"),
 			Platform:          record.GetString("platform"),
 			Model:             record.GetString("model"),
@@ -406,7 +406,7 @@ func (ls *LogService) ProviderDailyStats(platform string) ([]ProviderDailyStat, 
 	return stats, nil
 }
 
-func (ls *LogService) decorateCost(logEntry *ReqeustLog) {
+func (ls *LogService) decorateCost(logEntry *RequestLog) {
 	if ls == nil || ls.pricing == nil || logEntry == nil {
 		return
 	}

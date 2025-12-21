@@ -68,6 +68,23 @@ body {
   color: var(--mac-text);
   background: var(--app-background);
   transition: background 0.3s ease, color 0.3s ease;
+  overflow-x: hidden;
+}
+
+/* Page Transitions */
+.page-enter-active,
+.page-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
 }
 
 /* 全局隐藏滚动条 - WebView2/Chromium */
@@ -84,24 +101,47 @@ body {
 }
 
 /* 确保所有可滚动容器都隐藏滚动条 */
-html, body, #app,
-.main-shell, .contrib-page, .logs-page, .general-page, .skill-page,
-.mac-content, .mac-modal-wrapper, .mac-modal-scrollable, .mac-modal-body,
-.modal-scroll, .automation-list, .logs-table-wrapper,
-.icon-select-options, .skill-list, .skill-repo-list,
-[style*="overflow"], [class*="scroll"] {
+html,
+body,
+#app,
+.main-shell,
+.contrib-page,
+.logs-page,
+.general-page,
+.skill-page,
+.mac-content,
+.mac-modal-wrapper,
+.mac-modal-scrollable,
+.mac-modal-body,
+.modal-scroll,
+.automation-list,
+.logs-table-wrapper,
+.icon-select-options,
+.skill-list,
+.skill-repo-list,
+[style*="overflow"],
+[class*="scroll"] {
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
 }
 
-html::-webkit-scrollbar, body::-webkit-scrollbar, #app::-webkit-scrollbar,
-.main-shell::-webkit-scrollbar, .contrib-page::-webkit-scrollbar,
-.logs-page::-webkit-scrollbar, .general-page::-webkit-scrollbar,
-.skill-page::-webkit-scrollbar, .mac-content::-webkit-scrollbar,
-.mac-modal-wrapper::-webkit-scrollbar, .mac-modal-scrollable::-webkit-scrollbar,
-.mac-modal-body::-webkit-scrollbar, .modal-scroll::-webkit-scrollbar,
-.automation-list::-webkit-scrollbar, .logs-table-wrapper::-webkit-scrollbar,
-.icon-select-options::-webkit-scrollbar, .skill-list::-webkit-scrollbar,
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+#app::-webkit-scrollbar,
+.main-shell::-webkit-scrollbar,
+.contrib-page::-webkit-scrollbar,
+.logs-page::-webkit-scrollbar,
+.general-page::-webkit-scrollbar,
+.skill-page::-webkit-scrollbar,
+.mac-content::-webkit-scrollbar,
+.mac-modal-wrapper::-webkit-scrollbar,
+.mac-modal-scrollable::-webkit-scrollbar,
+.mac-modal-body::-webkit-scrollbar,
+.modal-scroll::-webkit-scrollbar,
+.automation-list::-webkit-scrollbar,
+.logs-table-wrapper::-webkit-scrollbar,
+.icon-select-options::-webkit-scrollbar,
+.skill-list::-webkit-scrollbar,
 .skill-repo-list::-webkit-scrollbar {
   display: none !important;
   width: 0 !important;
@@ -139,8 +179,10 @@ html::-webkit-scrollbar, body::-webkit-scrollbar, #app::-webkit-scrollbar,
 
 
 .mac-sidebar-subtitle {
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   color: var(--mac-text-secondary);
+  opacity: 0.8;
+  margin-bottom: 4px;
 }
 
 .mac-sidebar-list {
@@ -172,8 +214,48 @@ html.dark .mac-sidebar-item:hover {
 
 .mac-sidebar-item.active {
   color: var(--mac-text);
-  background: rgba(10, 132, 255, 0.12);
+  background: rgba(10, 132, 255, 0.15);
   box-shadow: inset 0 0 0 1px rgba(10, 132, 255, 0.2);
+  transform: translateX(4px);
+}
+
+/* Glassmorphism Utilities */
+.glass-panel {
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  background: color-mix(in srgb, var(--mac-surface) 70%, transparent);
+  border: 1px solid var(--mac-border);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .mac-content {
@@ -181,6 +263,7 @@ html.dark .mac-sidebar-item:hover {
   padding: 32px;
   overflow-y: auto;
   background: var(--mac-surface-strong);
+  animation: fadeIn 0.4s ease-out;
 }
 
 .mac-panel {
@@ -303,7 +386,9 @@ html.dark .mac-sidebar-item:hover {
   padding: 12px 18px;
   border-radius: 14px;
   border: 1px solid var(--mac-border);
-  background: var(--mac-surface-strong);
+  background: color-mix(in srgb, var(--mac-surface-strong) 75%, transparent);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
   color: var(--mac-text);
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
   opacity: 0;
@@ -315,11 +400,12 @@ html.dark .mac-sidebar-item:hover {
 .mac-toast-visible {
   opacity: 1;
   transform: translateY(0) scale(1);
+  transition: opacity 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .mac-toast-hide {
   opacity: 0;
-  transform: translateY(6px) scale(0.96);
+  transform: translateY(10px) scale(0.95);
 }
 
 .mac-toast-success {
@@ -383,7 +469,9 @@ html.dark .mac-sidebar-item:hover {
 
 .contrib-wall {
   position: relative;
-  background: var(--contrib-surface, #0f1116);
+  background: color-mix(in srgb, var(--contrib-surface, #0f1116) 90%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border-radius: 24px;
   padding: 32px;
   border: 1px solid rgba(15, 23, 42, 0.08);
@@ -438,14 +526,17 @@ html.dark .mac-sidebar-item:hover {
 }
 
 .contrib-cell:hover {
-  transform: scale(1.2);
-  box-shadow: 0 0 8px rgba(17, 255, 182, 0.6);
+  transform: scale(1.3);
+  box-shadow: 0 0 12px var(--mac-accent);
+  z-index: 2;
 }
 
 .contrib-tooltip {
   position: fixed;
   transform: translateX(-50%);
-  background: var(--contrib-tooltip-bg);
+  background: color-mix(in srgb, var(--contrib-tooltip-bg) 80%, transparent);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
   border: 1px solid var(--contrib-tooltip-border);
   border-radius: 12px;
   padding: 12px 14px;
@@ -677,7 +768,9 @@ html.dark .mac-sidebar-item:hover {
   bottom: calc(100% + 8px);
   left: 50%;
   transform: translateX(-50%);
-  background: color-mix(in srgb, var(--mac-surface-strong) 85%, rgba(0, 0, 0, 0.7));
+  background: color-mix(in srgb, var(--mac-surface-strong) 75%, rgba(0, 0, 0, 0.4));
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
   color: var(--mac-text);
   padding: 8px 12px;
   border-radius: 10px;
@@ -1067,6 +1160,25 @@ html.dark .mac-sidebar-item:hover {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  perspective: 1000px;
+}
+
+/* List Transitions */
+.list-move,
+.list-enter-active,
+.list-leave-active {
+  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.list-enter-from,
+.list-leave-to {
+  opacity: 0;
+  transform: translateX(-30px) scale(0.9);
+}
+
+.list-leave-active {
+  position: absolute;
+  width: 100%;
 }
 
 .automation-card {
@@ -1079,8 +1191,29 @@ html.dark .mac-sidebar-item:hover {
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.08);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.04);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease, border-color 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.automation-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.05), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.6s ease;
+}
+
+.automation-card:hover {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+  border-color: var(--mac-accent);
+}
+
+.automation-card:hover::after {
+  transform: translateX(100%);
 }
 
 .automation-card.dragging {
@@ -1261,8 +1394,10 @@ html.dark .ghost-icon:hover {
   bottom: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(15, 23, 42, 0.9);
-  color: #fff;
+  background: color-mix(in srgb, var(--mac-surface-strong) 75%, rgba(0, 0, 0, 0.4));
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  color: var(--mac-text);
   font-size: 11px;
   padding: 4px 8px;
   border-radius: 8px;
@@ -1326,10 +1461,27 @@ html.dark .ghost-icon:hover {
   background: var(--mac-surface);
   border-radius: 24px;
   border: 1px solid var(--mac-border);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: color-mix(in srgb, var(--mac-surface) 90%, transparent);
+}
+
+.mac-modal::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.15), transparent 40%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
 }
 
 .mac-modal-header {
@@ -1589,7 +1741,9 @@ html.dark .btn-ghost:focus-visible {
   z-index: 10;
   width: 100%;
   margin-top: 8px;
-  background: var(--mac-surface);
+  background: color-mix(in srgb, var(--mac-surface) 85%, transparent);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
   border: 1px solid var(--mac-border);
   border-radius: 12px;
   max-height: 220px;

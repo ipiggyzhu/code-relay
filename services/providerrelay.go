@@ -1,4 +1,4 @@
-package services
+﻿package services
 
 import (
 	"bytes"
@@ -35,8 +35,8 @@ type ProviderRelayService struct {
 
 // 自动禁用阈值
 const (
-	AutoDisableSuccessRateThreshold = 0.80 // 成功率低于80%时自动禁用
-	AutoDisableMinNewRequests       = 5    // 手动启用后至少5个新请求才重新检查
+	AutoDisableSuccessRateThreshold = 0.50 // 成功率低于50%时自动禁用
+	AutoDisableMinNewRequests       = 20   // 手动启用后至少20个新请求才重新检查
 )
 
 func NewProviderRelayService(providerService *ProviderService, logService *LogService, addr string) *ProviderRelayService {
@@ -280,13 +280,15 @@ func (prs *ProviderRelayService) proxyHandler(kind string, endpoint string) gin.
 		}
 
 		query := flattenQuery(c.Request.URL.Query())
-		clientHeaders := cloneHeaders(c.Request.Header)
+		// 性能优化：只克隆白名单内的请求头，避免无效遍历
+		clientHeaders := filterHeaders(c.Request.Header)
 
 		totalProviders := len(active)
 		var lastErr error
 		var lastStatus int
 		var lastBody []byte
 		var lastHeaders http.Header
+		bodyCache := make(map[string][]byte)
 		
 		for i, provider := range active {
 			isLastProvider := (i == totalProviders - 1)
@@ -295,13 +297,19 @@ func (prs *ProviderRelayService) proxyHandler(kind string, endpoint string) gin.
 
 			currentBodyBytes := bodyBytes
 			if effectiveModel != requestedModel && requestedModel != "" {
-				modifiedBody, err := ReplaceModelInRequestBody(bodyBytes, effectiveModel)
-				if err != nil {
-					lastErr = err
-					log.Printf("[Relay] 替换模型失败: %v", err)
-					continue
+				// 性能优化：缓存已替换的模型体，避免在 provider 轮询中重复执行 sjson 操作
+				if cachedBody, exists := bodyCache[effectiveModel]; exists {
+					currentBodyBytes = cachedBody
+				} else {
+					modifiedBody, err := ReplaceModelInRequestBody(bodyBytes, effectiveModel)
+					if err != nil {
+						lastErr = err
+						log.Printf("[Relay] 替换模型失败: %v", err)
+						continue
+					}
+					currentBodyBytes = modifiedBody
+					bodyCache[effectiveModel] = modifiedBody
 				}
-				currentBodyBytes = modifiedBody
 			}
 
 			status, headers, body, err := prs.forwardRequest(c, kind, provider, endpoint, query, clientHeaders, currentBodyBytes, isStream, effectiveModel)
@@ -310,6 +318,12 @@ func (prs *ProviderRelayService) proxyHandler(kind string, endpoint string) gin.
 				log.Printf("[Relay] Provider %s 请求失败: %v", provider.Name, err)
 				lastErr = err
 				continue
+			}
+
+			// status = -1 表示流式响应已经直接写入客户端，直接返回
+			if status == -1 {
+				log.Printf("[Relay] Provider %s 流式转发完成", provider.Name)
+				return
 			}
 
 			// 保存最后一次响应
@@ -380,11 +394,12 @@ func (prs *ProviderRelayService) writeResponse(c *gin.Context, status int, heade
 
 // httpClient 用于转发请求，支持长连接和流式响应
 var httpClient = &http.Client{
-	Timeout: 0, // 不设置超时，让流式响应可以持续
+	Timeout: 0,
 	Transport: &http.Transport{
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 10,
-		IdleConnTimeout:     90 * time.Second,
+		MaxIdleConns:        500,
+		MaxIdleConnsPerHost: 100, // 显著提升并发处理能力
+		IdleConnTimeout:     60 * time.Second,
+		DisableKeepAlives:   false,
 	},
 }
 
@@ -414,7 +429,7 @@ func (prs *ProviderRelayService) forwardRequest(
 		targetURL = targetURL + "?" + strings.Join(params, "&")
 	}
 
-	requestLog := &ReqeustLog{
+	requestLog := &RequestLog{
 		Platform: kind,
 		Provider: provider.Name,
 		Model:    model,
@@ -425,7 +440,10 @@ func (prs *ProviderRelayService) forwardRequest(
 	// 写入日志的函数
 	writeLog := func() {
 		requestLog.DurationSec = time.Since(start).Seconds()
-		go func(rl *ReqeustLog) {
+		go func(rl *RequestLog) {
+			if rl.Platform == "" {
+				return
+			}
 			if _, err := xdb.New("request_log").Insert(xdb.Record{
 				"platform":            rl.Platform,
 				"model":               rl.Model,
@@ -440,13 +458,13 @@ func (prs *ProviderRelayService) forwardRequest(
 				"duration_sec":        rl.DurationSec,
 				"created_at":          time.Now().Format("2006-01-02 15:04:05"),
 			}); err != nil {
-				log.Printf("[Relay] 写入日志失败: %v", err)
+				// 生产环境不频繁记录日志失败
 			}
 		}(requestLog)
 	}
 
-	// 创建请求
-	req, err := http.NewRequest("POST", targetURL, bytes.NewReader(bodyBytes))
+	// 创建请求并绑定 Context，确保客户端断开时同步停止上游请求
+	req, err := http.NewRequestWithContext(c.Request.Context(), "POST", targetURL, bytes.NewReader(bodyBytes))
 	if err != nil {
 		log.Printf("[Relay] 创建请求失败: %v", err)
 		requestLog.HttpCode = 0
@@ -454,16 +472,33 @@ func (prs *ProviderRelayService) forwardRequest(
 		return 0, nil, nil, err
 	}
 
-	// 设置请求头
+	// 应用预过滤的请求头
 	for k, v := range clientHeaders {
 		req.Header.Set(k, v)
 	}
+	
+	// 设置必要的请求头
+	req.Header.Set("Content-Type", "application/json")
+	// 同时设置两种认证头，兼容不同的 API 服务
+	// - Authorization: Bearer xxx (标准 OAuth2 格式，大多数云服务使用)
+	// - x-api-key: xxx (Anthropic 官方格式，本地代理如 gcli2api 使用)
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", provider.APIKey))
-	if req.Header.Get("Content-Type") == "" {
-		req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-api-key", provider.APIKey)
+	// 强制设置 anthropic-version，仅针对 Claude 平台
+	if kind == "claude" && req.Header.Get("anthropic-version") == "" {
+		req.Header.Set("anthropic-version", "2023-06-01")
 	}
 
 	log.Printf("[Relay] 转发请求到 %s, model=%s, stream=%v", targetURL, model, isStream)
+	log.Printf("[Relay] 请求头: anthropic-version=%s, x-api-key=%s...", 
+		req.Header.Get("anthropic-version"), 
+		func() string {
+			key := req.Header.Get("x-api-key")
+			if len(key) > 8 {
+				return key[:8]
+			}
+			return key
+		}())
 	
 	// 发送请求
 	resp, err := httpClient.Do(req)
@@ -473,13 +508,55 @@ func (prs *ProviderRelayService) forwardRequest(
 		writeLog()
 		return 0, nil, nil, err
 	}
-	defer resp.Body.Close()
 
 	status := resp.StatusCode
 	requestLog.HttpCode = status
 	log.Printf("[Relay] 收到响应, status=%d, content-type=%s", status, resp.Header.Get("Content-Type"))
 
-	// 读取响应体（不管成功还是失败都需要读取）
+	// 检测是否为 SSE 流式响应
+	contentType := resp.Header.Get("Content-Type")
+	isSSE := strings.Contains(contentType, "text/event-stream")
+
+	// 如果请求是流式的，或者响应是 SSE，都使用流式转发
+	// 但只有成功时才流式转发，失败时需要尝试下一个 provider
+	shouldStream := isStream || isSSE
+	
+	if shouldStream && status >= 200 && status < 300 {
+		log.Printf("[Relay] 使用流式转发模式 (请求stream=%v, 响应SSE=%v, status=%d)", isStream, isSSE, status)
+		// 使用更加透传的方案：直接设置响应头并使用自定义 Writer 进行转发
+		for k, vv := range resp.Header {
+			for _, v := range vv {
+				c.Writer.Header().Add(k, v)
+			}
+		}
+		c.Writer.WriteHeader(status)
+
+		// 创建一个带有 Token 统计功能的 Writer
+		hook := RequestLogHook(c, kind, requestLog)
+		parser := &streamParser{
+			writer: c.Writer,
+			hook:   hook,
+		}
+
+		// 使用 io.Copy 实现高性能透传，避免 bufio.Scanner 的行缓冲区造成的延迟
+		if _, err := io.Copy(parser, resp.Body); err != nil {
+			log.Printf("[Relay] 流式转发中断: %v", err)
+		}
+		// 必须调用 Flush 处理最后一行的解析
+		parser.Flush()
+		resp.Body.Close()
+
+		log.Printf("[Relay] 流式转发完成, tokens: in=%d, out=%d",
+			requestLog.InputTokens, requestLog.OutputTokens)
+
+		writeLog()
+		go prs.checkAndAutoDisable(kind, provider.Name)
+
+		return -1, nil, nil, nil
+	}
+
+	// 非流式响应：读取完整响应体
+	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Printf("[Relay] 读取响应体失败: %v", err)
@@ -489,7 +566,15 @@ func (prs *ProviderRelayService) forwardRequest(
 	}
 
 	// 解析 token 用量
-	parseEventPayload(string(body), getTokenParser(kind), requestLog)
+	// 为非流式响应解析 token 用量
+	parserFn := getTokenParser(kind)
+	bodyStr := string(body)
+	if isSSE {
+		parseEventPayload(bodyStr, parserFn, requestLog)
+	} else {
+		// 非 SSE 响应直接解析完整 JSON
+		parserFn(bodyStr, requestLog)
+	}
 
 	log.Printf("[Relay] 转发完成, status=%d, body_size=%d, tokens: in=%d, out=%d", 
 		status, len(body), requestLog.InputTokens, requestLog.OutputTokens)
@@ -503,7 +588,7 @@ func (prs *ProviderRelayService) forwardRequest(
 	return status, resp.Header, body, nil
 }
 
-func getTokenParser(kind string) func(string, *ReqeustLog) {
+func getTokenParser(kind string) func(string, *RequestLog) {
 	if kind == "codex" {
 		return CodexParseTokenUsageFromResponse
 	}
@@ -570,22 +655,28 @@ func (prs *ProviderRelayService) checkAndAutoDisable(kind string, providerName s
 	}
 }
 
-func cloneHeaders(header http.Header) map[string]string {
-	cloned := make(map[string]string, len(header))
-	for key, values := range header {
-		if len(values) > 0 {
-			cloned[key] = values[len(values)-1]
-		}
-	}
-	return cloned
+var allowedForwardHeaders = map[string]bool{
+	"accept":                      true,
+	"user-agent":                  true,
+	"x-request-id":                true,
+	"x-stainless-arch":            true,
+	"x-stainless-lang":            true,
+	"x-stainless-os":              true,
+	"x-stainless-package-version": true,
+	"x-stainless-runtime":         true,
+	"x-stainless-runtime-version": true,
+	"anthropic-version":           true,
+	"anthropic-beta":              true,
 }
 
-func cloneMap(m map[string]string) map[string]string {
-	cloned := make(map[string]string, len(m))
-	for k, v := range m {
-		cloned[k] = v
+func filterHeaders(header http.Header) map[string]string {
+	filtered := make(map[string]string)
+	for key, values := range header {
+		if len(values) > 0 && allowedForwardHeaders[strings.ToLower(key)] {
+			filtered[key] = values[len(values)-1]
+		}
 	}
-	return cloned
+	return filtered
 }
 
 func flattenQuery(values map[string][]string) map[string]string {
@@ -675,31 +766,91 @@ func ensureRequestLogTableWithDB(db *sql.DB) error {
 	return nil
 }
 
-func ReqeustLogHook(c *gin.Context, kind string, usage *ReqeustLog) func(data []byte) (bool, []byte) { // SSE 钩子：累计字节和解析 token 用量
-	return func(data []byte) (bool, []byte) {
-		payload := strings.TrimSpace(string(data))
+// streamParser 是一个自定义 Writer，它在透传原始字节流的同时
+// 使用钩子函数（hook）来解析和记录 Token 用量，不会造成行级缓冲延迟
+type streamParser struct {
+	writer gin.ResponseWriter
+	hook   func([]byte) (bool, []byte)
+	buffer []byte // 用于暂存不完整的 SSE 线
+}
 
-		parserFn := ClaudeCodeParseTokenUsageFromResponse
-		if kind == "codex" {
-			parserFn = CodexParseTokenUsageFromResponse
+func (s *streamParser) Write(p []byte) (n int, err error) {
+	// 1. 立即透传数据给客户端，确保最低延迟 (TTFT)
+	n, err = s.writer.Write(p)
+	if flusher, ok := s.writer.(http.Flusher); ok {
+		flusher.Flush()
+	}
+
+	// 2. 将数据交给 hook 处理（用于异步解析 token）
+	// hook 会处理 SSE 行的分解和解析
+	s.hook(p)
+
+	return
+}
+
+func (s *streamParser) Flush() {
+	// 调用 hook 处理 buffer 中剩余的最后一行（可能没有换行符）
+	s.hook(nil)
+}
+
+func RequestLogHook(c *gin.Context, kind string, usage *RequestLog) func(data []byte) (bool, []byte) {
+	// 使用 stateful buffer 记录未关闭的行，防止 chunk 截断导致解析失败
+	var rowBuf bytes.Buffer
+	
+	parserFn := ClaudeCodeParseTokenUsageFromResponse
+	if kind == "codex" {
+		parserFn = CodexParseTokenUsageFromResponse
+	}
+
+	return func(data []byte) (bool, []byte) {
+		if data == nil {
+			// Flush 逻辑：处理最后一块可能不完整的数据
+			if rowBuf.Len() > 0 {
+				trimmed := strings.TrimSpace(rowBuf.String())
+				if strings.HasPrefix(trimmed, "data:") {
+					payload := strings.TrimSpace(strings.TrimPrefix(trimmed, "data:"))
+					parserFn(payload, usage)
+				}
+				rowBuf.Reset()
+			}
+			return true, nil
 		}
-		parseEventPayload(payload, parserFn, usage)
+
+		rowBuf.Write(data)
+		
+		for {
+			line, err := rowBuf.ReadString('\n')
+			if err != nil {
+				// 如果没有换行符，将读取到的部分存回 buffer 底部
+				rowBuf.Write([]byte(line))
+				break
+			}
+			
+			// 处理完整的一行 SSE 数据
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "data:") {
+				payload := strings.TrimSpace(strings.TrimPrefix(trimmed, "data:"))
+				parserFn(payload, usage)
+			}
+		}
 
 		return true, data
 	}
 }
 
-func parseEventPayload(payload string, parser func(string, *ReqeustLog), usage *ReqeustLog) {
+func parseEventPayload(payload string, parser func(string, *RequestLog), usage *RequestLog) {
 	lines := strings.Split(payload, "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "data:") {
-			parser(strings.TrimPrefix(line, "data: "), usage)
+			// 统一使用更鲁棒的解析逻辑，兼容 data: { 和 data:{
+			data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+			parser(data, usage)
 		}
 	}
 }
 
-type ReqeustLog struct {
+type RequestLog struct {
 	ID                int64   `json:"id"`
 	Platform          string  `json:"platform"` // claude code or codex
 	Model             string  `json:"model"`
@@ -724,22 +875,44 @@ type ReqeustLog struct {
 }
 
 // claude code usage parser
-func ClaudeCodeParseTokenUsageFromResponse(data string, usage *ReqeustLog) {
+func ClaudeCodeParseTokenUsageFromResponse(data string, usage *RequestLog) {
+	// 1. 处理流式 chunk 中的 message 嵌套格式
 	usage.InputTokens += int(gjson.Get(data, "message.usage.input_tokens").Int())
 	usage.OutputTokens += int(gjson.Get(data, "message.usage.output_tokens").Int())
 	usage.CacheCreateTokens += int(gjson.Get(data, "message.usage.cache_creation_input_tokens").Int())
 	usage.CacheReadTokens += int(gjson.Get(data, "message.usage.cache_read_input_tokens").Int())
 
-	usage.InputTokens += int(gjson.Get(data, "usage.input_tokens").Int())
-	usage.OutputTokens += int(gjson.Get(data, "usage.output_tokens").Int())
+	// 2. 处理标准响应或某些 chunk 中的根级 usage 格式
+	u := gjson.Get(data, "usage")
+	if u.Exists() {
+		usage.InputTokens += int(u.Get("input_tokens").Int())
+		usage.OutputTokens += int(u.Get("output_tokens").Int())
+		usage.CacheCreateTokens += int(u.Get("cache_creation_input_tokens").Int())
+		usage.CacheReadTokens += int(u.Get("cache_read_input_tokens").Int())
+	}
 }
 
 // codex usage parser
-func CodexParseTokenUsageFromResponse(data string, usage *ReqeustLog) {
-	usage.InputTokens += int(gjson.Get(data, "response.usage.input_tokens").Int())
-	usage.OutputTokens += int(gjson.Get(data, "response.usage.output_tokens").Int())
-	usage.CacheReadTokens += int(gjson.Get(data, "response.usage.input_tokens_details.cached_tokens").Int())
-	usage.ReasoningTokens += int(gjson.Get(data, "response.usage.output_tokens_details.reasoning_tokens").Int())
+func CodexParseTokenUsageFromResponse(data string, usage *RequestLog) {
+	// 尝试解析 response.usage (部分代理格式) 或根级 usage (标准格式)
+	u := gjson.Get(data, "response.usage")
+	if !u.Exists() {
+		u = gjson.Get(data, "usage")
+	}
+
+	if u.Exists() {
+		usage.InputTokens += int(u.Get("input_tokens").Int())
+		usage.OutputTokens += int(u.Get("output_tokens").Int())
+		// 增加对 prompt_tokens/completion_tokens 的兼容
+		if usage.InputTokens == 0 {
+			usage.InputTokens = int(u.Get("prompt_tokens").Int())
+		}
+		if usage.OutputTokens == 0 {
+			usage.OutputTokens = int(u.Get("completion_tokens").Int())
+		}
+		usage.CacheReadTokens += int(u.Get("input_tokens_details.cached_tokens").Int())
+		usage.ReasoningTokens += int(u.Get("output_tokens_details.reasoning_tokens").Int())
+	}
 }
 
 // ReplaceModelInRequestBody 替换请求体中的模型名

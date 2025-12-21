@@ -215,15 +215,16 @@
         </div>
       </div>
       <div class="automation-list" @dragover.prevent>
-        <article
-          v-for="card in activeCards"
-          :key="card.id"
-          :class="['automation-card', { dragging: draggingId === card.id }]"
-          draggable="true"
-          @dragstart="onDragStart(card.id)"
-          @dragend="onDragEnd"
-          @drop="onDrop(card.id)"
-        >
+        <TransitionGroup name="list">
+          <article
+            v-for="card in activeCards"
+            :key="card.id"
+            :class="['automation-card', { dragging: draggingId === card.id }]"
+            draggable="true"
+            @dragstart="onDragStart(card.id)"
+            @dragend="onDragEnd"
+            @drop="onDrop(card.id)"
+          >
           <div class="card-leading">
             <div class="card-icon" :style="{ backgroundColor: card.tint, color: card.accent }">
               <span
@@ -319,8 +320,9 @@
               </svg>
             </button>
           </div>
-        </article>
-      </div>
+            </article>
+          </TransitionGroup>
+       </div>
       </section>
 
       <BaseModal

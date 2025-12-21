@@ -70,7 +70,7 @@ watch(() => props.open, (isOpen) => {
 
 .modal-enter-active,
 .modal-leave-active {
-  transition: opacity 0.2s ease;
+  transition: opacity 0.3s ease;
 }
 
 .modal-enter-from,
@@ -78,15 +78,22 @@ watch(() => props.open, (isOpen) => {
   opacity: 0;
 }
 
-.modal-enter-active .mac-modal,
-.modal-leave-active .mac-modal {
-  transition: transform 0.2s ease, opacity 0.2s ease;
+.modal-enter-active .mac-modal {
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
 }
 
-.modal-enter-from .mac-modal,
+.modal-leave-active .mac-modal {
+  transition: transform 0.2s ease-in, opacity 0.2s ease-in;
+}
+
+.modal-enter-from .mac-modal {
+  opacity: 0;
+  transform: scale(0.9) translateY(20px);
+}
+
 .modal-leave-to .mac-modal {
   opacity: 0;
-  transform: scale(0.95);
+  transform: scale(0.95) translateY(10px);
 }
 </style>
 
