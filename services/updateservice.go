@@ -92,7 +92,7 @@ func (us *UpdateService) Stop() error {
 
 // autoCheckLoop 后台自动检测循环
 func (us *UpdateService) autoCheckLoop() {
-	// 启动后延迟 30 秒再开始第一次检测，避免影响启动速度
+	// 启动后延迟30秒再开始第一次检测，避免影响启动速度
 	select {
 	case <-time.After(30 * time.Second):
 	case <-us.stopChan:
@@ -307,16 +307,25 @@ func (us *UpdateService) InstallUpdate(downloadedPath string) error {
 		return err
 	}
 
+	// 记录路径信息，便于调试
+	log.Printf("[UpdateService] 当前程序路径: %s", currentExe)
+	log.Printf("[UpdateService] 新版本文件路径: %s", downloadedPath)
+
 	// 创建更新批处理脚本
 	batchScript := us.createUpdateScript(currentExe, downloadedPath)
 	batchPath := filepath.Join(os.TempDir(), "code-relay-update.bat")
+
+	log.Printf("[UpdateService] 更新脚本路径: %s", batchPath)
 
 	if err := os.WriteFile(batchPath, []byte(batchScript), 0755); err != nil {
 		return err
 	}
 
-	// 启动批处理脚本（在新窗口中运行，这样用户可以看到进度）
-	cmd := exec.Command("cmd", "/C", "start", "", batchPath)
+	// 启动批处理脚本
+	// 使用 /C 执行命令后关闭cmd，start 命令启动新进程
+	// 第一个 "" 是窗口标题，第二个参数是要执行的文件
+	cmd := exec.Command("cmd", "/C", "start", "Code Relay Update", batchPath)
+	cmd.Dir = os.TempDir() // 设置工作目录
 	if err := cmd.Start(); err != nil {
 		return err
 	}
@@ -338,6 +347,7 @@ func (us *UpdateService) createUpdateScript(currentExe, newExe string) string {
 	exeName := filepath.Base(currentExe)
 
 	// 静默更新脚本：等待程序退出 -> 替换文件 -> 重启程序
+	// 注意：路径使用双引号包裹，支持包含空格的路径
 	return fmt.Sprintf(`@echo off
 chcp 65001 >nul
 setlocal enabledelayedexpansion
@@ -345,6 +355,11 @@ setlocal enabledelayedexpansion
 set "NEW_EXE=%s"
 set "CURRENT_EXE=%s"
 set "EXE_NAME=%s"
+
+:: 记录更新信息到日志文件
+echo [%%date%% %%time%%] 开始更新... >> "%%TEMP%%\code-relay-update.log"
+echo [%%date%% %%time%%] 新版本路径: %%NEW_EXE%% >> "%%TEMP%%\code-relay-update.log"
+echo [%%date%% %%time%%] 目标路径: %%CURRENT_EXE%% >> "%%TEMP%%\code-relay-update.log"
 
 :: 等待程序完全退出
 :waitloop
@@ -354,18 +369,33 @@ if not errorlevel 1 (
     goto waitloop
 )
 
+echo [%%date%% %%time%%] 程序已退出，开始复制文件... >> "%%TEMP%%\code-relay-update.log"
+
 :: 尝试直接复制
 copy /Y "%%NEW_EXE%%" "%%CURRENT_EXE%%" >nul 2>&1
 if not errorlevel 1 (
+    echo [%%date%% %%time%%] 直接复制成功 >> "%%TEMP%%\code-relay-update.log"
     goto success
 )
 
+echo [%%date%% %%time%%] 直接复制失败，尝试提升权限... >> "%%TEMP%%\code-relay-update.log"
+
 :: 如果直接复制失败，尝试使用 PowerShell 提升权限
-powershell -Command "Start-Process -FilePath 'cmd.exe' -ArgumentList '/c copy /Y \"%%NEW_EXE%%\" \"%%CURRENT_EXE%%\"' -Verb RunAs -Wait" >nul 2>&1
+:: 使用单独的批处理文件来执行复制，避免引号转义问题
+echo @echo off > "%%TEMP%%\code-relay-copy.bat"
+echo copy /Y "%%NEW_EXE%%" "%%CURRENT_EXE%%" >> "%%TEMP%%\code-relay-copy.bat"
+powershell -Command "Start-Process -FilePath '%%TEMP%%\code-relay-copy.bat' -Verb RunAs -Wait" >nul 2>&1
+
+if exist "%%CURRENT_EXE%%" (
+    echo [%%date%% %%time%%] 提升权限复制完成 >> "%%TEMP%%\code-relay-update.log"
+)
 
 :success
-:: 清理下载的文件
+:: 清理下载的文件和临时批处理
 del /Q "%%NEW_EXE%%" >nul 2>&1
+del /Q "%%TEMP%%\code-relay-copy.bat" >nul 2>&1
+
+echo [%%date%% %%time%%] 启动新版本: %%CURRENT_EXE%% >> "%%TEMP%%\code-relay-update.log"
 
 :: 启动新版本
 start "" "%%CURRENT_EXE%%"
