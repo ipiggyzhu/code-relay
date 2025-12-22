@@ -10,6 +10,12 @@ export interface UpdateInfo {
   fileSize: number
 }
 
+export interface PendingUpdateInfo {
+  hasPendingUpdate: boolean
+  version: string
+  filePath: string
+}
+
 export const checkForUpdates = async (): Promise<UpdateInfo | null> => {
   try {
     const result = await CheckForUpdates()
@@ -47,6 +53,10 @@ export const getCurrentExePath = async (): Promise<string | null> => {
     return null
   }
 }
+
+// 这些函数需要在 wails generate bindings 后才能使用
+// export const getPendingUpdate = async (): Promise<PendingUpdateInfo | null> => { ... }
+// export const setPendingUpdate = async (path: string, version: string): Promise<boolean> => { ... }
 
 export const formatFileSize = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`

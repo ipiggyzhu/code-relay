@@ -89,6 +89,13 @@ func main() {
 		}
 	}()
 
+	// 启动后台自动更新检测
+	go func() {
+		if err := updateService.Start(); err != nil {
+			log.Printf("update service start error: %v", err)
+		}
+	}()
+
 	//fmt.Println(clipboardService)
 	// Create a new Wails application by providing the necessary options.
 	// Variables 'Name' and 'Description' are for application metadata.
@@ -125,6 +132,13 @@ func main() {
 
 	app.OnShutdown(func() {
 		_ = providerRelay.Stop()
+		// 检查是否有待安装的更新，如果有则在退出时自动安装
+		if updateService.HasPendingUpdate() {
+			log.Println("[Main] 检测到待安装更新，正在启动更新程序...")
+			if err := updateService.ApplyPendingUpdate(); err != nil {
+				log.Printf("[Main] 启动更新程序失败: %v", err)
+			}
+		}
 	})
 
 	// Create a new window with the necessary options.

@@ -4,19 +4,28 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
+	"time"
 )
 
 // UpdateService 处理应用自动更新
 type UpdateService struct {
-	currentVersion string
-	repoOwner      string
-	repoName       string
+	currentVersion    string
+	repoOwner         string
+	repoName          string
+	pendingUpdatePath string       // 已下载待安装的更新文件路径
+	pendingVersion    string       // 待安装的版本号
+	mu                sync.RWMutex // 保护共享状态
+	stopChan          chan struct{}
+	checkInterval     time.Duration
+	autoCheckEnabled  bool
 }
 
 // ReleaseInfo GitHub Release 信息
@@ -44,6 +53,13 @@ type UpdateInfo struct {
 	FileSize       int64  `json:"fileSize"`
 }
 
+// PendingUpdateInfo 待安装更新信息
+type PendingUpdateInfo struct {
+	HasPendingUpdate bool   `json:"hasPendingUpdate"`
+	Version          string `json:"version"`
+	FilePath         string `json:"filePath"`
+}
+
 // DownloadProgress 下载进度
 type DownloadProgress struct {
 	Downloaded int64   `json:"downloaded"`
@@ -53,14 +69,91 @@ type DownloadProgress struct {
 
 func NewUpdateService(currentVersion string) *UpdateService {
 	return &UpdateService{
-		currentVersion: currentVersion,
-		repoOwner:      "ipiggyzhu",
-		repoName:       "code-relay",
+		currentVersion:   currentVersion,
+		repoOwner:        "ipiggyzhu",
+		repoName:         "code-relay",
+		stopChan:         make(chan struct{}),
+		checkInterval:    1 * time.Hour, // 每小时检查一次
+		autoCheckEnabled: true,
 	}
 }
 
-func (us *UpdateService) Start() error { return nil }
-func (us *UpdateService) Stop() error  { return nil }
+// Start 启动后台自动更新检测
+func (us *UpdateService) Start() error {
+	go us.autoCheckLoop()
+	return nil
+}
+
+// Stop 停止后台检测
+func (us *UpdateService) Stop() error {
+	close(us.stopChan)
+	return nil
+}
+
+// autoCheckLoop 后台自动检测循环
+func (us *UpdateService) autoCheckLoop() {
+	// 启动后延迟 30 秒再开始第一次检测，避免影响启动速度
+	select {
+	case <-time.After(30 * time.Second):
+	case <-us.stopChan:
+		return
+	}
+
+	// 第一次检测
+	us.silentCheckAndDownload()
+
+	// 定期检测
+	ticker := time.NewTicker(us.checkInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			us.silentCheckAndDownload()
+		case <-us.stopChan:
+			return
+		}
+	}
+}
+
+// silentCheckAndDownload 静默检测并下载更新
+func (us *UpdateService) silentCheckAndDownload() {
+	// 如果已有待安装的更新，跳过
+	us.mu.RLock()
+	if us.pendingUpdatePath != "" {
+		us.mu.RUnlock()
+		return
+	}
+	us.mu.RUnlock()
+
+	// 检测更新
+	info, err := us.CheckForUpdates()
+	if err != nil {
+		log.Printf("[UpdateService] 检测更新失败: %v", err)
+		return
+	}
+
+	if !info.HasUpdate || info.DownloadURL == "" {
+		return
+	}
+
+	log.Printf("[UpdateService] 发现新版本 %s，开始后台下载...", info.LatestVersion)
+
+	// 后台下载
+	downloadedPath, err := us.DownloadUpdate(info.DownloadURL)
+	if err != nil {
+		log.Printf("[UpdateService] 下载更新失败: %v", err)
+		return
+	}
+
+	// 保存待安装信息
+	us.mu.Lock()
+	us.pendingUpdatePath = downloadedPath
+	us.pendingVersion = info.LatestVersion
+	us.mu.Unlock()
+
+	log.Printf("[UpdateService] 更新已下载到 %s，将在程序关闭时自动安装", downloadedPath)
+}
 
 // CheckForUpdates 检查是否有新版本
 func (us *UpdateService) CheckForUpdates() (*UpdateInfo, error) {
@@ -72,7 +165,7 @@ func (us *UpdateService) CheckForUpdates() (*UpdateInfo, error) {
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
@@ -123,7 +216,8 @@ func (us *UpdateService) DownloadUpdate(downloadURL string) (string, error) {
 	destPath := filepath.Join(tempDir, fileName)
 
 	// 下载文件
-	resp, err := http.Get(downloadURL)
+	client := &http.Client{Timeout: 10 * time.Minute}
+	resp, err := client.Get(downloadURL)
 	if err != nil {
 		return "", err
 	}
@@ -147,6 +241,54 @@ func (us *UpdateService) DownloadUpdate(downloadURL string) (string, error) {
 	}
 
 	return destPath, nil
+}
+
+// GetPendingUpdate 获取待安装的更新信息
+func (us *UpdateService) GetPendingUpdate() *PendingUpdateInfo {
+	us.mu.RLock()
+	defer us.mu.RUnlock()
+
+	return &PendingUpdateInfo{
+		HasPendingUpdate: us.pendingUpdatePath != "",
+		Version:          us.pendingVersion,
+		FilePath:         us.pendingUpdatePath,
+	}
+}
+
+// HasPendingUpdate 检查是否有待安装的更新
+func (us *UpdateService) HasPendingUpdate() bool {
+	us.mu.RLock()
+	defer us.mu.RUnlock()
+	return us.pendingUpdatePath != ""
+}
+
+// ApplyPendingUpdate 应用待安装的更新（在程序退出时调用）
+func (us *UpdateService) ApplyPendingUpdate() error {
+	us.mu.RLock()
+	pendingPath := us.pendingUpdatePath
+	us.mu.RUnlock()
+
+	if pendingPath == "" {
+		return nil // 没有待安装的更新
+	}
+
+	return us.InstallUpdate(pendingPath)
+}
+
+// SetPendingUpdate 手动设置待安装的更新（用于用户手动下载后）
+func (us *UpdateService) SetPendingUpdate(path, version string) {
+	us.mu.Lock()
+	defer us.mu.Unlock()
+	us.pendingUpdatePath = path
+	us.pendingVersion = version
+}
+
+// ClearPendingUpdate 清除待安装的更新
+func (us *UpdateService) ClearPendingUpdate() {
+	us.mu.Lock()
+	defer us.mu.Unlock()
+	us.pendingUpdatePath = ""
+	us.pendingVersion = ""
 }
 
 // InstallUpdate 安装更新（Windows）
@@ -173,8 +315,8 @@ func (us *UpdateService) InstallUpdate(downloadedPath string) error {
 		return err
 	}
 
-	// 启动批处理脚本（在后台运行）
-	cmd := exec.Command("cmd", "/C", "start", "/B", batchPath)
+	// 启动批处理脚本（在新窗口中运行，这样用户可以看到进度）
+	cmd := exec.Command("cmd", "/C", "start", "", batchPath)
 	if err := cmd.Start(); err != nil {
 		return err
 	}
@@ -191,76 +333,44 @@ func (us *UpdateService) GetCurrentExePath() (string, error) {
 	return filepath.EvalSymlinks(exePath)
 }
 
-// createUpdateScript 创建 Windows 更新批处理脚本
+// createUpdateScript 创建 Windows 更新批处理脚本（静默模式）
 func (us *UpdateService) createUpdateScript(currentExe, newExe string) string {
 	exeName := filepath.Base(currentExe)
-	installDir := filepath.Dir(currentExe)
 
-	// 使用 PowerShell 脚本来处理更新，支持管理员权限提升
+	// 静默更新脚本：等待程序退出 -> 替换文件 -> 重启程序
 	return fmt.Sprintf(`@echo off
 chcp 65001 >nul
 setlocal enabledelayedexpansion
 
-echo ========================================
-echo   Code Relay 自动更新
-echo ========================================
-echo.
-
 set "NEW_EXE=%s"
 set "CURRENT_EXE=%s"
-set "INSTALL_DIR=%s"
 set "EXE_NAME=%s"
 
-echo 等待程序退出...
-timeout /t 2 /nobreak >nul
-
+:: 等待程序完全退出
 :waitloop
+timeout /t 1 /nobreak >nul
 tasklist /FI "IMAGENAME eq %%EXE_NAME%%" 2>NUL | find /I "%%EXE_NAME%%" >NUL
 if not errorlevel 1 (
-    echo 程序仍在运行，等待中...
-    timeout /t 1 /nobreak >nul
     goto waitloop
 )
 
-echo 程序已退出，开始更新...
-echo.
-
 :: 尝试直接复制
-echo 正在复制文件...
 copy /Y "%%NEW_EXE%%" "%%CURRENT_EXE%%" >nul 2>&1
 if not errorlevel 1 (
-    echo 更新成功！
     goto success
 )
 
 :: 如果直接复制失败，尝试使用 PowerShell 提升权限
-echo 需要管理员权限，正在请求...
-powershell -Command "Start-Process -FilePath 'cmd.exe' -ArgumentList '/c copy /Y \"%s\" \"%s\" && echo 更新成功' -Verb RunAs -Wait" 2>nul
-if errorlevel 1 (
-    echo.
-    echo ========================================
-    echo   更新失败！
-    echo ========================================
-    echo.
-    echo 请手动将以下文件复制到安装目录：
-    echo   源文件: %%NEW_EXE%%
-    echo   目标: %%CURRENT_EXE%%
-    echo.
-    pause
-    exit /b 1
-)
+powershell -Command "Start-Process -FilePath 'cmd.exe' -ArgumentList '/c copy /Y \"%%NEW_EXE%%\" \"%%CURRENT_EXE%%\"' -Verb RunAs -Wait" >nul 2>&1
 
 :success
-echo.
-echo ========================================
-echo   更新完成！
-echo ========================================
-echo.
-echo 正在启动新版本...
-timeout /t 1 /nobreak >nul
+:: 清理下载的文件
+del /Q "%%NEW_EXE%%" >nul 2>&1
+
+:: 启动新版本
 start "" "%%CURRENT_EXE%%"
 exit /b 0
-`, newExe, currentExe, installDir, exeName, newExe, currentExe)
+`, newExe, currentExe, exeName)
 }
 
 // findPlatformAsset 查找对应平台的资源文件
