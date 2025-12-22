@@ -1,81 +1,10 @@
 <template>
   <div class="main-shell">
-    <div class="global-actions">
-      <p class="global-eyebrow">{{ t('components.main.hero.eyebrow') }}</p>
-      <button
-        class="ghost-icon github-icon"
-        :class="{ 'github-upgrade': hasUpdateAvailable }"
-        :data-tooltip="hasUpdateAvailable ? t('components.main.controls.githubUpdate') : t('components.main.controls.github')"
-        @click="hasUpdateAvailable ? openUpdateModal() : openGitHub()"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path
-            d="M9 19c-4.5 1.5-4.5-2.5-6-3m12 5v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0018 3.77 5.07 5.07 0 0017.91 1S16.73.65 14 2.48a13.38 13.38 0 00-5 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 3.77a5.44 5.44 0 00-1.5 3.76c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </button>
-      <button
-        class="ghost-icon"
-        :data-tooltip="t('components.main.controls.theme')"
-        @click="toggleTheme"
-      >
-        <svg v-if="themeIcon === 'sun'" viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.5" fill="none" />
-          <path
-            d="M12 3v2m0 14v2m9-9h-2M5 12H3m14.95 6.95-1.41-1.41M7.46 7.46 6.05 6.05m12.9 0-1.41 1.41M7.46 16.54l-1.41 1.41"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-          />
-        </svg>
-        <svg v-else viewBox="0 0 24 24" aria-hidden="true">
-          <path
-            d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </button>
-      <button
-        class="ghost-icon"
-        :data-tooltip="t('components.main.controls.settings')"
-        @click="goToSettings"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path
-            d="M12 15a3 3 0 100-6 3 3 0 000 6z"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            fill="none"
-          />
-          <path
-            d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            fill="none"
-          />
-        </svg>
-      </button>
-    </div>
+    <PageHeader :title="t('components.main.hero.title')">
+      <template #actions>
+      </template>
+    </PageHeader>
     <div class="contrib-page">
-      <section class="contrib-hero">
-        <h1 v-if="showHomeTitle">{{ t('components.main.hero.title') }}</h1>
-        <!-- <p class="lead">
-          {{ t('components.main.hero.lead') }}
-        </p> -->
-      </section>
 
       <section
         v-if="showHeatmap"
@@ -117,85 +46,6 @@
               <span class="relay-tooltip-content">{{ currentProxyLabel }} · {{ t('components.main.relayToggle.tooltip') }}</span>
             </div>
           </div>
-          <button
-            class="ghost-icon"
-            :data-tooltip="t('components.main.controls.mcp')"
-            @click="goToMcp"
-          >
-            <span class="icon-svg" v-html="mcpIcon" aria-hidden="true"></span>
-          </button>
-          <button
-            class="ghost-icon"
-            :data-tooltip="t('components.main.controls.skill')"
-            @click="goToSkill"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                d="M6 4h8a4 4 0 014 4v12a3 3 0 00-3-3H6z"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-              <path
-                d="M6 4a2 2 0 00-2 2v13c0 .55.45 1 1 1h11"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-              <path
-                d="M9 8h5"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-              />
-            </svg>
-          </button>
-          <button
-            class="ghost-icon"
-            :data-tooltip="activeTab === 'claude'
-              ? t('components.main.controls.editClaudeConfig')
-              : t('components.main.controls.editCodexConfig')"
-            @click="openCommonConfigModal"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-              <path
-                d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-          </button>
-          <button
-            class="ghost-icon"
-            :data-tooltip="t('components.main.logs.view')"
-            @click="goToLogs"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                d="M5 7h14M5 12h14M5 17h9"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                fill="none"
-              />
-            </svg>
-          </button>
           <button
             class="ghost-icon"
             :data-tooltip="t('components.main.tabs.addCard')"
@@ -242,7 +92,7 @@
             </div>
             <div class="card-text">
               <div class="card-title-row">
-                <p class="card-title">{{ card.name }}</p>
+                <p class="card-title">{{ translateProvider(card.name) }}</p>
                 <span
                   v-if="card.officialSite"
                   class="card-site"
@@ -517,73 +367,6 @@
         </form>
       </BaseModal>
 
-      <!-- 更新弹窗 -->
-      <BaseModal
-        :open="updateModalState.open"
-        :title="t('components.main.update.available')"
-        @close="closeUpdateModal"
-      >
-        <div class="update-modal-content">
-          <div v-if="updateModalState.checking" class="update-checking">
-            <div class="update-spinner"></div>
-            <p>{{ t('components.main.update.checking') }}</p>
-          </div>
-
-          <template v-else-if="updateModalState.updateInfo">
-            <div v-if="updateModalState.updateInfo.hasUpdate" class="update-info">
-              <div class="update-versions">
-                <div class="version-row">
-                  <span class="version-label">{{ t('components.main.update.currentVersion') }}:</span>
-                  <span class="version-value">{{ updateModalState.updateInfo.currentVersion }}</span>
-                </div>
-                <div class="version-row">
-                  <span class="version-label">{{ t('components.main.update.latestVersion') }}:</span>
-                  <span class="version-value version-new">{{ updateModalState.updateInfo.latestVersion }}</span>
-                </div>
-                <div v-if="updateModalState.updateInfo.fileSize" class="version-row">
-                  <span class="version-label">{{ t('components.main.update.fileSize') }}:</span>
-                  <span class="version-value">{{ formatFileSize(updateModalState.updateInfo.fileSize) }}</span>
-                </div>
-              </div>
-
-              <p v-if="updateModalState.error" class="update-error">{{ updateModalState.error }}</p>
-
-              <div class="update-actions">
-                <template v-if="!updateModalState.downloadedPath">
-                  <BaseButton
-                    v-if="updateModalState.updateInfo.downloadUrl"
-                    :disabled="updateModalState.downloading"
-                    @click="handleDownloadUpdate"
-                  >
-                    {{ updateModalState.downloading ? t('components.main.update.downloading') : t('components.main.update.download') }}
-                  </BaseButton>
-                  <BaseButton variant="outline" @click="openReleasePage">
-                    {{ t('components.main.update.viewRelease') }}
-                  </BaseButton>
-                </template>
-                <template v-else>
-                  <p class="update-hint">{{ t('components.main.update.installHint') }}</p>
-                  <BaseButton
-                    :disabled="updateModalState.installing"
-                    @click="handleInstallUpdate"
-                  >
-                    {{ updateModalState.installing ? t('components.main.update.installing') : t('components.main.update.install') }}
-                  </BaseButton>
-                </template>
-              </div>
-            </div>
-
-            <div v-else class="update-no-update">
-              <p>{{ t('components.main.update.noUpdate') }}</p>
-              <p class="update-current">{{ t('components.main.update.currentVersion') }}: {{ updateModalState.updateInfo.currentVersion }}</p>
-            </div>
-          </template>
-
-          <p v-if="updateModalState.error && !updateModalState.updateInfo" class="update-error">
-            {{ updateModalState.error }}
-          </p>
-        </div>
-      </BaseModal>
 
       <footer v-if="appVersion" class="main-version">
         {{ t('components.main.versionLabel', { version: appVersion }) }}
@@ -594,6 +377,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, onMounted, onUnmounted } from 'vue'
+import PageHeader from '../Navigation/PageHeader.vue'
 import { useI18n } from 'vue-i18n'
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/vue'
 import { Browser, Application } from '@wailsio/runtime'
@@ -624,8 +408,14 @@ import { getSpeedTestColorClass } from '../../utils/speedTest'
 import { checkForUpdates as checkForUpdatesService, downloadUpdate, installUpdate, formatFileSize, type UpdateInfo } from '../../services/update'
 import { useRouter } from 'vue-router'
 
-const { t, locale } = useI18n()
+const { t, locale, te } = useI18n()
 const router = useRouter()
+
+const translateProvider = (name: string) => {
+  if (!name) return name
+  const key = `components.main.providers.names.${name.trim()}`
+  return te(key) ? t(key) : name
+}
 const themeMode = ref<ThemeMode>(getCurrentTheme())
 const resolvedTheme = computed(() => {
   if (themeMode.value === 'systemdefault') {
@@ -635,7 +425,6 @@ const resolvedTheme = computed(() => {
 })
 const themeIcon = computed(() => (resolvedTheme.value === 'dark' ? 'moon' : 'sun'))
 const releasePageUrl = 'https://github.com/ipiggyzhu/code-relay/releases'
-const releaseApiUrl = 'https://api.github.com/repos/ipiggyzhu/code-relay/releases/latest'
 
 const HEATMAP_DAYS = DEFAULT_HEATMAP_DAYS
 const usageHeatmap = ref<UsageHeatmapWeek[]>(generateFallbackUsageHeatmap(HEATMAP_DAYS))
@@ -644,43 +433,34 @@ const heatmapContainerRef = ref<HTMLElement | null>(null)
 const proxyStates = reactive<Record<ProviderTab, boolean>>({
   claude: false,
   codex: false,
+  gemini: false,
 })
 const proxyBusy = reactive<Record<ProviderTab, boolean>>({
   claude: false,
   codex: false,
+  gemini: false,
 })
 
 const providerStatsMap = reactive<Record<ProviderTab, Record<string, ProviderDailyStat>>>({
   claude: {},
   codex: {},
+  gemini: {},
 } as Record<ProviderTab, Record<string, ProviderDailyStat>>)
 const providerStatsLoading = reactive<Record<ProviderTab, boolean>>({
   claude: false,
   codex: false,
+  gemini: false,
 } as Record<ProviderTab, boolean>)
 const providerStatsLoaded = reactive<Record<ProviderTab, boolean>>({
   claude: false,
   codex: false,
+  gemini: false,
 } as Record<ProviderTab, boolean>)
 let providerStatsTimer: number | undefined
-let updateTimer: number | undefined
 const showHeatmap = ref(true)
 const showHomeTitle = ref(true)
-const mcpIcon = lobeIcons['mcp'] ?? ''
 const appVersion = ref('')
-const hasUpdateAvailable = ref(false)
 
-// 更新弹窗状态
-const updateModalState = reactive({
-  open: false,
-  checking: false,
-  updateInfo: null as UpdateInfo | null,
-  downloading: false,
-  downloadProgress: 0,
-  downloadedPath: '',
-  installing: false,
-  error: '',
-})
 
 const intensityClass = (value: number) => `gh-level-${value}`
 
@@ -718,6 +498,12 @@ const clamp = (value: number, min: number, max: number) => {
 
 
 
+const normalizeProviderKey = (value: string) => value?.trim().toLowerCase() ?? ''
+
+const handleAppSettingsUpdated = () => {
+  void loadAppSettings()
+}
+
 const loadAppSettings = async () => {
   try {
     const data: AppSettings = await fetchAppSettings()
@@ -730,142 +516,15 @@ const loadAppSettings = async () => {
   }
 }
 
-const checkForUpdates = async () => {
+const loadAppVersion = async () => {
   try {
     const version = await fetchCurrentVersion()
     appVersion.value = version || ''
   } catch (error) {
     console.error('failed to load app version', error)
   }
-
-  try {
-    const resp = await fetch(releaseApiUrl, {
-      headers: {
-        Accept: 'application/vnd.github+json',
-      },
-    })
-    if (!resp.ok) {
-      return
-    }
-    const data = await resp.json()
-    const latestTag = data?.tag_name ?? ''
-    if (latestTag && compareVersions(appVersion.value || '0.0.0', latestTag) < 0) {
-      hasUpdateAvailable.value = true
-    }
-  } catch (error) {
-    console.error('failed to fetch release info', error)
-  }
 }
 
-// 打开更新弹窗
-const openUpdateModal = async () => {
-  updateModalState.open = true
-  updateModalState.checking = true
-  updateModalState.error = ''
-  updateModalState.downloadedPath = ''
-  updateModalState.downloading = false
-  updateModalState.installing = false
-
-  try {
-    const info = await checkForUpdatesService()
-    updateModalState.updateInfo = info
-  } catch (error) {
-    updateModalState.error = String(error)
-  } finally {
-    updateModalState.checking = false
-  }
-}
-
-const closeUpdateModal = () => {
-  updateModalState.open = false
-}
-
-// 下载更新
-const handleDownloadUpdate = async () => {
-  if (!updateModalState.updateInfo?.downloadUrl) return
-
-  updateModalState.downloading = true
-  updateModalState.error = ''
-
-  try {
-    const path = await downloadUpdate(updateModalState.updateInfo.downloadUrl)
-    if (path) {
-      updateModalState.downloadedPath = path
-    } else {
-      updateModalState.error = t('components.main.update.downloadFailed')
-    }
-  } catch (error) {
-    updateModalState.error = String(error)
-  } finally {
-    updateModalState.downloading = false
-  }
-}
-
-// 安装更新
-const handleInstallUpdate = async () => {
-  if (!updateModalState.downloadedPath) return
-
-  updateModalState.installing = true
-  updateModalState.error = ''
-
-  try {
-    const success = await installUpdate(updateModalState.downloadedPath)
-    if (success) {
-      // 安装脚本已启动，等待一下然后退出应用
-      setTimeout(() => {
-        Application.Quit()
-      }, 500)
-    } else {
-      updateModalState.error = t('components.main.update.installFailed')
-    }
-  } catch (error) {
-    updateModalState.error = String(error)
-  } finally {
-    updateModalState.installing = false
-  }
-}
-
-// 打开发布页面
-const openReleasePage = () => {
-  if (updateModalState.updateInfo?.releaseUrl) {
-    Browser.OpenURL(updateModalState.updateInfo.releaseUrl)
-  }
-}
-
-const handleAppSettingsUpdated = () => {
-  void loadAppSettings()
-}
-
-const startUpdateTimer = () => {
-  stopUpdateTimer()
-  updateTimer = window.setInterval(() => {
-    void checkForUpdates()
-  }, 60 * 60 * 1000)
-}
-
-const stopUpdateTimer = () => {
-  if (updateTimer) {
-    clearInterval(updateTimer)
-    updateTimer = undefined
-  }
-}
-
-const normalizeProviderKey = (value: string) => value?.trim().toLowerCase() ?? ''
-
-const normalizeVersion = (value: string) => value.replace(/^v/i, '').trim()
-
-const compareVersions = (current: string, remote: string) => {
-  const curParts = normalizeVersion(current).split('.').map((part) => parseInt(part, 10) || 0)
-  const remoteParts = normalizeVersion(remote).split('.').map((part) => parseInt(part, 10) || 0)
-  const maxLen = Math.max(curParts.length, remoteParts.length)
-  for (let i = 0; i < maxLen; i++) {
-    const cur = curParts[i] ?? 0
-    const rem = remoteParts[i] ?? 0
-    if (cur === rem) continue
-    return cur < rem ? -1 : 1
-  }
-  return 0
-}
 
 const loadUsageHeatmap = async () => {
 	try {
@@ -880,6 +539,7 @@ const loadUsageHeatmap = async () => {
 const tabs = [
   { id: 'claude', label: 'Claude Code' },
   { id: 'codex', label: 'Codex' },
+  { id: 'gemini', label: 'Gemini' },
 ] as const
 type ProviderTab = (typeof tabs)[number]['id']
 const providerTabIds = tabs.map((tab) => tab.id) as ProviderTab[]
@@ -887,6 +547,7 @@ const providerTabIds = tabs.map((tab) => tab.id) as ProviderTab[]
 const cards = reactive<Record<ProviderTab, AutomationCard[]>>({
   claude: createAutomationCards(automationCardGroups.claude),
   codex: createAutomationCards(automationCardGroups.codex),
+  gemini: createAutomationCards(automationCardGroups.gemini || []),
 })
 const draggingId = ref<number | null>(null)
 
@@ -1108,56 +769,25 @@ onMounted(async () => {
   await Promise.all(providerTabIds.map(refreshProxyState))
   await Promise.all(providerTabIds.map((tab) => loadProviderStats(tab)))
   await loadAppSettings()
-  await checkForUpdates()
   startProviderStatsTimer()
-  startUpdateTimer()
   window.addEventListener('app-settings-updated', handleAppSettingsUpdated)
 })
 
 onUnmounted(() => {
   stopProviderStatsTimer()
   window.removeEventListener('app-settings-updated', handleAppSettingsUpdated)
-  stopUpdateTimer()
 })
 
 const selectedIndex = ref(0)
 const activeTab = computed<ProviderTab>(() => tabs[selectedIndex.value]?.id ?? tabs[0].id)
 const activeCards = computed(() => cards[activeTab.value] ?? [])
-const currentProxyLabel = computed(() =>
-  activeTab.value === 'claude'
-    ? t('components.main.relayToggle.hostClaude')
-    : t('components.main.relayToggle.hostCodex')
-)
+const currentProxyLabel = computed(() => {
+  if (activeTab.value === 'claude') return t('components.main.relayToggle.hostClaude')
+  if (activeTab.value === 'codex') return t('components.main.relayToggle.hostCodex')
+  return t('components.main.relayToggle.hostGemini')
+})
 const activeProxyState = computed(() => proxyStates[activeTab.value])
 const activeProxyBusy = computed(() => proxyBusy[activeTab.value])
-
-const goToLogs = () => {
-  router.push('/logs')
-}
-
-const goToMcp = () => {
-  router.push('/mcp')
-}
-
-const goToSkill = () => {
-  router.push('/skill')
-}
-
-const goToSettings = () => {
-  router.push('/settings')
-}
-
-const toggleTheme = () => {
-  const next = resolvedTheme.value === 'dark' ? 'light' : 'dark'
-  themeMode.value = next
-  setTheme(next)
-}
-
-const openGitHub = () => {
-  Browser.OpenURL(releasePageUrl).catch(() => {
-    console.error('failed to open github')
-  })
-}
 
 type VendorForm = {
   name: string

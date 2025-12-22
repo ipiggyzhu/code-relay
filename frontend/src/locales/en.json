@@ -8,6 +8,13 @@
     "general": "General settings",
     "shortcut": "Shortcut key"
   },
+  "sidebar": {
+    "overview": "Overview",
+    "mcp": "MCP Manager",
+    "skill": "Skill Library",
+    "logs": "Diagnostics",
+    "settings": "Settings"
+  },
   "components": {
     "provider": {
       "modelWhitelist": {
@@ -65,6 +72,7 @@
         "label": "Claude proxy",
         "hostClaude": "Host Claude Code",
         "hostCodex": "Host Codex",
+        "hostGemini": "Host Gemini",
         "tooltip": "Route traffic through the local relay to manage API keys centrally.",
         "statusOn": "Managed",
         "statusOff": "Not managed"
@@ -83,7 +91,8 @@
         "skill": "Open skill catalog",
         "import": "Import cc-switch config",
         "editClaudeConfig": "Edit Claude Code common config",
-        "editCodexConfig": "Edit Codex common config"
+        "editCodexConfig": "Edit Codex common config",
+        "editGeminiConfig": "Edit Gemini common config"
       },
       "versionLabel": "Version {version}",
       "importConfig": {
@@ -91,6 +100,10 @@
         "success": "Imported {providers} providers and {servers} MCP servers",
         "empty": "Everything from cc-switch is already in sync",
         "error": "Failed to import cc-switch config"
+      },
+      "sidebar": {
+        "expand": "Expand sidebar",
+        "collapse": "Collapse sidebar"
       },
       "commonConfig": {
         "titleClaude": "Edit Claude Code Common Config",
@@ -110,7 +123,18 @@
         "cost": "Cost",
         "successRate": "Success rate",
         "loading": "Refreshing...",
-        "noData": "No data yet today"
+        "noData": "No data yet today",
+        "names": {
+          "熊猫API": "Panda API",
+          "学渣助手": "XueZha Assistant",
+          "无言AI": "Wuyan AI",
+          "莹のAPI": "Ying's API",
+          "AICoding.sh": "AICoding.sh",
+          "Kimi": "Kimi",
+          "Deepseek": "Deepseek",
+          "agentrouter": "agentrouter",
+          "univibe": "univibe"
+        }
       },
       "form": {
         "createTitle": "Add vendor",
@@ -170,6 +194,7 @@
         "networkError": "Network error"
       },
       "update": {
+        "checkUpdates": "Check for updates",
         "checking": "Checking for updates...",
         "available": "New version available",
         "noUpdate": "You're up to date",
@@ -235,8 +260,8 @@
         "input": "Input",
         "output": "Output",
         "reasoning": "Reasoning",
-        "cacheWrite": "Cache write",
-        "cacheRead": "Cache read",
+        "cacheWrite": "Cache W",
+        "cacheRead": "Cache R",
         "cost": "Cost"
       },
       "streamOn": "Streaming",
@@ -250,7 +275,8 @@
         "application": "Apply settings",
         "exterior": "Appearance settings",
         "power": "Permission settings",
-        "update": "Application update"
+        "update": "Application update",
+        "about": "About"
       },
       "label": {
         "assistant_access": "Accessibility permissions",
@@ -262,7 +288,8 @@
         "theme": "Theme mode",
         "heatmap": "Show dashboard heatmap",
         "homeTitle": "Show home title",
-        "autoStart": "Launch at login"
+        "autoStart": "Launch at login",
+        "version": "Current version"
       },
       "subLabel": {
         "sb_assistant_access": "Accessibility permission is required to operate clipboard contents",
@@ -414,7 +441,8 @@
     "themesetting": {
       "select": {
         "opt_dark": "Dark Mode",
-        "opt_light": "Bright Mode"
+        "opt_light": "Light Mode",
+        "opt_system": "Follow System"
       }
     },
     "shortcut": {
@@ -427,11 +455,6 @@
       "descriptions": {
         "openMain": "Must include at least one modifier and a main key",
         "openPreferences": "Use a distinct combo to avoid conflicts"
-      },
-      "messages": {
-        "saved": "Shortcut saved",
-        "failed": "Failed to save shortcut",
-        "invalid": "Invalid combination, include a modifier"
       },
       "placeholder": "Press keys to record"
     }

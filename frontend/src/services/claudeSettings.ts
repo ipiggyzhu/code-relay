@@ -1,11 +1,12 @@
 import { Call } from '@wailsio/runtime'
 import type { ClaudeProxyStatus } from '../../bindings/coderelay/services/models'
 
-type Platform = 'claude' | 'codex'
+type Platform = 'claude' | 'codex' | 'gemini'
 
 const serviceNames: Record<Platform, string> = {
   claude: 'coderelay/services.ClaudeSettingsService',
   codex: 'coderelay/services.CodexSettingsService',
+  gemini: 'coderelay/services.GeminiSettingsService',
 }
 
 const callByPlatform = async <T = unknown>(platform: Platform, method: string, payload?: any[]): Promise<T> => {

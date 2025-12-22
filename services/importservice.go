@@ -264,6 +264,7 @@ func findCcSwitchExe() string {
 type ccSwitchConfig struct {
 	Claude ccProviderSection `json:"claude"`
 	Codex  ccProviderSection `json:"codex"`
+	Gemini ccProviderSection `json:"gemini"`
 	MCP    ccMCPSection      `json:"mcp"`
 }
 
@@ -322,6 +323,7 @@ func (is *ImportService) pendingProviders(cfg *ccSwitchConfig) (map[string][]pro
 	result := map[string][]providerCandidate{
 		"claude": {},
 		"codex":  {},
+		"gemini": {},
 	}
 	claudeExisting, err := is.providerService.LoadProviders("claude")
 	if err != nil {
@@ -333,6 +335,13 @@ func (is *ImportService) pendingProviders(cfg *ccSwitchConfig) (map[string][]pro
 	}
 	result["claude"] = diffProviderCandidates("claude", cfg.Claude.Providers, claudeExisting)
 	result["codex"] = diffProviderCandidates("codex", cfg.Codex.Providers, codexExisting)
+	
+	geminiExisting, err := is.providerService.LoadProviders("gemini")
+	if err != nil {
+		return nil, err
+	}
+	result["gemini"] = diffProviderCandidates("gemini", cfg.Gemini.Providers, geminiExisting)
+	
 	return result, nil
 }
 
@@ -414,6 +423,20 @@ func parseProviderEntry(kind, key string, entry ccProviderEntry) (providerCandid
 		}
 		apiURL := resolveCodexAPIURL(entry.Settings.Config)
 		if apiURL == "" {
+			return providerCandidate{}, false
+		}
+		return providerCandidate{Name: name, APIURL: apiURL, APIKey: apiKey, Site: site}, true
+	case "gemini":
+		apiURL := strings.TrimSpace(entry.Settings.Env["GOOGLE_GEMINI_BASE_URL"])
+		apiKey := pickFirstNonEmpty(
+			entry.Settings.Env["GEMINI_API_KEY"],
+			entry.Settings.Env["GOOGLE_GEMINI_API_KEY"],
+		)
+		if apiURL == "" {
+			// 默认使用 Google 官方的 OpenAI 兼容端点
+			apiURL = "https://generativelanguage.googleapis.com/v1beta/openai"
+		}
+		if apiKey == "" {
 			return providerCandidate{}, false
 		}
 		return providerCandidate{Name: name, APIURL: apiURL, APIKey: apiKey, Site: site}, true
@@ -503,6 +526,13 @@ func (is *ImportService) importProviders(cfg *ccSwitchConfig, pending map[string
 		}
 		total += added
 	}
+	if candidates := pending["gemini"]; len(candidates) > 0 {
+		added, err := is.saveProviders("gemini", candidates)
+		if err != nil {
+			return total, err
+		}
+		total += added
+	}
 	return total, nil
 }
 
@@ -550,6 +580,8 @@ func defaultVisual(kind string) (accent, tint string) {
 	switch strings.ToLower(kind) {
 	case "codex":
 		return "#ec4899", "rgba(236, 72, 153, 0.16)"
+	case "gemini":
+		return "#4285f4", "rgba(66, 133, 244, 0.12)"
 	default:
 		return "#0a84ff", "rgba(15, 23, 42, 0.12)"
 	}

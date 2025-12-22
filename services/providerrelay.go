@@ -125,7 +125,7 @@ func (prs *ProviderRelayService) Start() error {
 func (prs *ProviderRelayService) validateConfig() []string {
 	warnings := make([]string, 0)
 
-	for _, kind := range []string{"claude", "codex"} {
+	for _, kind := range []string{"claude", "codex", "gemini"} {
 		providers, err := prs.providerService.LoadProviders(kind)
 		if err != nil {
 			warnings = append(warnings, fmt.Sprintf("[%s] 加载配置失败: %v", kind, err))
@@ -179,6 +179,9 @@ func (prs *ProviderRelayService) Addr() string {
 func (prs *ProviderRelayService) registerRoutes(router gin.IRouter) {
 	router.POST("/v1/messages", prs.proxyHandler("claude", "/v1/messages"))
 	router.POST("/responses", prs.proxyHandler("codex", "/responses"))
+	// Gemini OpenAI-compatible routes
+	router.POST("/v1/chat/completions", prs.proxyHandler("gemini", "/v1/chat/completions"))
+	router.POST("/v1/embeddings", prs.proxyHandler("gemini", "/v1/embeddings"))
 }
 
 func (prs *ProviderRelayService) proxyHandler(kind string, endpoint string) gin.HandlerFunc {
@@ -589,7 +592,7 @@ func (prs *ProviderRelayService) forwardRequest(
 }
 
 func getTokenParser(kind string) func(string, *RequestLog) {
-	if kind == "codex" {
+	if kind == "codex" || kind == "gemini" {
 		return CodexParseTokenUsageFromResponse
 	}
 	return ClaudeCodeParseTokenUsageFromResponse

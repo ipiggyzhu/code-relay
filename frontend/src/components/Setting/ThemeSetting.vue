@@ -1,10 +1,20 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { setTheme, getCurrentTheme, ThemeMode } from '../../utils/ThemeManager'
+import { useI18n } from 'vue-i18n'
+import GlassDropdown from '../common/GlassDropdown.vue'
 
+const { t } = useI18n()
 const themevalue = ref<ThemeMode>('light')
 
-const themeChange = () => {
+const options = computed(() => [
+  { value: 'light', label: t('components.themesetting.select.opt_light') },
+  { value: 'dark', label: t('components.themesetting.select.opt_dark') },
+  { value: 'systemdefault', label: t('components.themesetting.select.opt_system') },
+])
+
+const onThemeChange = (value: string) => {
+  themevalue.value = value as ThemeMode
   setTheme(themevalue.value)
 }
 
@@ -14,8 +24,9 @@ onMounted(() => {
 </script>
 
 <template>
-  <select class="mac-select" v-model="themevalue" @change="themeChange">
-    <option value="light">{{ $t('components.themesetting.select.opt_light') }}</option>
-    <option value="dark">{{ $t('components.themesetting.select.opt_dark') }}</option>
-  </select>
+  <GlassDropdown
+    :model-value="themevalue"
+    :options="options"
+    @update:model-value="onThemeChange"
+  />
 </template>

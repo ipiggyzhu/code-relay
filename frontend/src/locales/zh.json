@@ -8,6 +8,13 @@
     "shortcut": "快捷键",
     "about": "关于"
   },
+  "sidebar": {
+    "overview": "概览看板",
+    "mcp": "MCP 管理",
+    "skill": "Skill 列表",
+    "logs": "运行日志",
+    "settings": "设置"
+  },
   "components": {
     "home": {},
     "provider": {
@@ -66,6 +73,7 @@
         "label": "Claude proxy",
         "hostClaude": "托管 Claude Code",
         "hostCodex": "托管 Codex",
+        "hostGemini": "托管 Gemini",
         "tooltip": "通过本地转发托管 API 访问，统一管理密钥与配额。",
         "statusOn": "已托管",
         "statusOff": "未托管"
@@ -84,7 +92,8 @@
         "skill": "打开 Skill 列表",
         "import": "导入 cc-switch 配置",
         "editClaudeConfig": "编辑 Claude Code 通用配置",
-        "editCodexConfig": "编辑 Codex 通用配置"
+        "editCodexConfig": "编辑 Codex 通用配置",
+        "editGeminiConfig": "编辑 Gemini 通用配置"
       },
       "versionLabel": "版本 {version}",
       "importConfig": {
@@ -92,6 +101,10 @@
         "success": "已导入 {providers} 个供应商与 {servers} 个 MCP 服务器",
         "empty": "cc-switch 中的供应商与 MCP 均已同步",
         "error": "导入 cc-switch 配置失败"
+      },
+      "sidebar": {
+        "expand": "展开侧边栏",
+        "collapse": "收起侧边栏"
       },
       "commonConfig": {
         "titleClaude": "编辑 Claude Code 通用配置",
@@ -112,7 +125,18 @@
         "cost": "花费",
         "successRate": "成功率",
         "loading": "刷新中...",
-        "noData": "今日暂无数据"
+        "noData": "今日暂无数据",
+        "names": {
+          "熊猫API": "熊猫API",
+          "学渣助手": "学渣助手",
+          "无言AI": "无言AI",
+          "莹のAPI": "莹のAPI",
+          "AICoding.sh": "AICoding.sh",
+          "Kimi": "Kimi",
+          "Deepseek": "Deepseek",
+          "agentrouter": "agentrouter",
+          "univibe": "univibe"
+        }
       },
       "form": {
         "createTitle": "新增供应商",
@@ -172,6 +196,7 @@
         "networkError": "网络错误"
       },
       "update": {
+        "checkUpdates": "检查更新",
         "checking": "检查更新中...",
         "available": "发现新版本",
         "noUpdate": "已是最新版本",
@@ -252,7 +277,8 @@
         "power": "权限设置",
         "application": "应用设置",
         "exterior": "外观设置",
-        "update": "应用更新"
+        "update": "应用更新",
+        "about": "关于应用"
       },
       "label": {
         "assistant_access": "辅助功能访问权限",
@@ -264,7 +290,8 @@
         "homeTitle": "显示首页标题",
         "autoStart": "开机自启动",
         "automatic_up": "自动检查更新",
-        "next_up": "下次启动自动检查更新"
+        "next_up": "下次启动自动检查更新",
+        "version": "当前版本"
       },
       "subLabel": {
         "sb_assistant_access": "需要无障碍访问权限来操作剪切板内容",
@@ -416,7 +443,8 @@
     "themesetting": {
       "select": {
         "opt_light": "亮色模式",
-        "opt_dark": "暗色模式"
+        "opt_dark": "暗色模式",
+        "opt_system": "跟随系统"
       }
     },
     "shortcut": {

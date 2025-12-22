@@ -1,16 +1,14 @@
 <template>
   <div class="logs-page">
-    <div class="logs-header">
-      <BaseButton variant="outline" type="button" @click="backToHome">
-        {{ t('components.logs.back') }}
-      </BaseButton>
-      <div class="refresh-indicator">
-        <span>{{ t('components.logs.nextRefresh', { seconds: countdown }) }}</span>
-        <BaseButton size="sm" :disabled="loading" @click="manualRefresh">
-          {{ t('components.logs.refresh') }}
-        </BaseButton>
-      </div>
-    </div>
+    <PageHeader :title="t('components.main.logs.view')">
+      <template #actions>
+        <div class="header-right-actions">
+          <BaseButton size="sm" :disabled="loading" @click="loadDashboard">
+            {{ t('components.logs.refresh') }}
+          </BaseButton>
+        </div>
+      </template>
+    </PageHeader>
 
     <section class="logs-summary" v-if="statsCards.length">
       <article v-for="card in statsCards" :key="card.key" class="summary-card">
@@ -21,7 +19,23 @@
     </section>
 
     <section class="logs-chart">
-      <Line :data="chartData" :options="chartOptions" />
+      <div class="chart-header">
+        <div class="chart-legend">
+          <button 
+            v-for="ds in visibleDatasets" 
+            :key="ds.label"
+            class="legend-item"
+            :class="{ active: !ds.hidden }"
+            @click="toggleDataset(ds)"
+          >
+            <span class="dot" :style="{ backgroundColor: ds.borderColor }"></span>
+            {{ translateProvider(ds.label) }}
+          </button>
+        </div>
+      </div>
+      <div class="chart-content">
+        <Line :data="chartData" :options="chartOptions" />
+      </div>
     </section>
 
     <form class="logs-filter-row" @submit.prevent="applyFilters">
@@ -39,7 +53,7 @@
           <select v-model="filters.provider" class="mac-select">
             <option value="">{{ t('components.logs.filters.allProviders') }}</option>
             <option v-for="provider in providerOptions" :key="provider" :value="provider">
-              {{ provider }}
+              {{ translateProvider(provider) }}
             </option>
           </select>
         </label>
@@ -69,7 +83,7 @@
           <tr v-for="item in pagedLogs" :key="item.id">
             <td>{{ formatTime(item.created_at) }}</td>
             <td>{{ item.platform || '—' }}</td>
-            <td>{{ item.provider || '—' }}</td>
+            <td>{{ translateProvider(item.provider) || '—' }}</td>
             <td>{{ item.model || '—' }}</td>
             <td :class="['code', httpCodeClass(item.http_code)]">{{ item.http_code }}</td>
             <td><span :class="['stream-tag', item.is_stream ? 'on' : 'off']">{{ formatStream(item.is_stream) }}</span></td>
@@ -120,6 +134,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, onMounted, watch, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import PageHeader from '../Navigation/PageHeader.vue'
 import { useI18n } from 'vue-i18n'
 import BaseButton from '../common/BaseButton.vue'
 import {
@@ -144,7 +159,21 @@ import { Line } from 'vue-chartjs'
 
 Chart.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend)
 
-const { t } = useI18n()
+const visibleDatasets = ref<any[]>([])
+
+const toggleDataset = (ds: any) => {
+  ds.hidden = !ds.hidden
+  // 强制触发图表更新
+  chartData.value.datasets = [...chartData.value.datasets]
+}
+
+const { t, te } = useI18n()
+
+const translateProvider = (name: string) => {
+  if (!name) return name
+  const key = `components.main.providers.names.${name.trim()}`
+  return te(key) ? t(key) : name
+}
 const router = useRouter()
 
 const logs = ref<RequestLog[]>([])
@@ -290,6 +319,12 @@ const chartData = computed(() => {
   }
 })
 
+watch(chartData, (newData) => {
+  if (newData.datasets) {
+    visibleDatasets.value = newData.datasets
+  }
+}, { immediate: true })
+
 const chartOptions = computed<ChartOptions<'line'>>(() => {
   const legendColor = getCssVarValue('--mac-text', isDarkMode.value ? '#f8fafc' : '#0f172a')
   const axisColor = getCssVarValue(
@@ -308,19 +343,19 @@ const chartOptions = computed<ChartOptions<'line'>>(() => {
     },
     plugins: {
       legend: {
-        labels: {
-          color: legendColor,
-          font: {
-            size: 12,
-            weight: 500,
-          },
-        },
+        display: false,
       },
     },
     scales: {
       x: {
         grid: { display: false },
-        ticks: { color: axisColor },
+        ticks: { 
+          color: axisColor,
+          maxRotation: 0,
+          autoSkip: true,
+          maxTicksLimit: 15,
+          font: { size: 10 }
+        },
       },
       y: {
         beginAtZero: true,
@@ -357,32 +392,6 @@ const formatSeriesLabel = (value?: string) => {
   return value
 }
 
-const REFRESH_INTERVAL = 30
-const countdown = ref(REFRESH_INTERVAL)
-let timer: number | undefined
-
-const resetTimer = () => {
-  countdown.value = REFRESH_INTERVAL
-}
-
-const startCountdown = () => {
-  stopCountdown()
-  timer = window.setInterval(() => {
-    if (countdown.value <= 1) {
-      countdown.value = REFRESH_INTERVAL
-      void loadDashboard()
-    } else {
-      countdown.value -= 1
-    }
-  }, 1000)
-}
-
-const stopCountdown = () => {
-  if (timer) {
-    clearInterval(timer)
-    timer = undefined
-  }
-}
 
 const loadLogs = async () => {
   loading.value = true
@@ -424,17 +433,8 @@ const totalPages = computed(() => Math.max(1, Math.ceil(logs.value.length / PAGE
 const applyFilters = async () => {
   page.value = 1
   await loadDashboard()
-  resetTimer()
 }
 
-const refreshLogs = () => {
-  void loadDashboard()
-}
-
-const manualRefresh = () => {
-  resetTimer()
-  void loadDashboard()
-}
 
 const nextPage = () => {
   if (page.value < totalPages.value) {
@@ -448,9 +448,6 @@ const prevPage = () => {
   }
 }
 
-const backToHome = () => {
-  router.push('/')
-}
 
 const padHour = (num: number) => num.toString().padStart(2, '0')
 
@@ -570,22 +567,28 @@ watch(
 
 onMounted(async () => {
   await Promise.all([loadDashboard(), loadProviderOptions()])
-  startCountdown()
   setupThemeObserver()
 })
 
 onUnmounted(() => {
-  stopCountdown()
   teardownThemeObserver()
 })
 </script>
 
 <style scoped>
+.logs-page {
+  max-width: 100%;
+}
 .logs-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 1rem;
   margin-bottom: 0.75rem;
+}
+
+.header-right-actions {
+  display: flex;
+  align-items: center;
 }
 
 .summary-meta {
@@ -642,9 +645,174 @@ html.dark .summary-card__hint {
   color: rgba(186, 194, 210, 0.8);
 }
 
+.logs-chart {
+  margin-bottom: 2rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(15, 23, 42, 0.05);
+  border-radius: 16px;
+  padding: 1.5rem 1rem;
+  height: auto;
+  min-height: 440px;
+  display: flex;
+  flex-direction: column;
+}
+
+html.dark .logs-chart {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(15, 23, 42, 0.2);
+}
+
+.chart-header {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+  width: 100%;
+  padding: 0 10px;
+  box-sizing: border-box;
+}
+
+.chart-legend {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  line-height: 1;
+  color: var(--mac-text-secondary, #64748b);
+  cursor: pointer;
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  border-radius: 20px;
+  padding: 8px 16px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+  flex: 0 0 auto;
+  min-width: max-content;
+  box-sizing: border-box;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.legend-item:hover {
+  background: rgba(148, 163, 184, 0.1);
+  border-color: rgba(148, 163, 184, 0.2);
+  transform: translateY(-1px);
+}
+
+.legend-item.active {
+  color: var(--mac-text, #0f172a);
+  background: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  border-color: rgba(148, 163, 184, 0.3);
+}
+
+html.dark .legend-item {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
+}
+
+html.dark .legend-item.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f8fafc;
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8);
+}
+
+html.dark .dot {
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.5);
+}
+
+.chart-content {
+  height: 300px;
+  width: 100%;
+}
+
 @media (max-width: 768px) {
   .logs-summary {
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   }
+}
+
+.logs-table-wrapper {
+  overflow-x: auto !important;
+  overflow-y: hidden;
+  display: block;
+  width: 100%;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.02);
+  border: 1px solid rgba(15, 23, 42, 0.05);
+  margin-top: 1rem;
+  /* Override global scrollbar-width: none */
+  scrollbar-width: thin !important;
+  scrollbar-color: var(--mac-accent, #3b82f6) rgba(148, 163, 184, 0.1);
+  -ms-overflow-style: auto !important;
+}
+
+html.dark .logs-table-wrapper {
+  background: rgba(15, 23, 42, 0.2);
+  border-color: rgba(255, 255, 255, 0.08);
+  scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.05);
+}
+
+.logs-table {
+  width: 100%;
+  min-width: 1200px;
+  border-collapse: collapse;
+}
+
+/* Liquid Glass Scrollbar - WebKit browsers */
+.logs-table-wrapper::-webkit-scrollbar {
+  height: 8px;
+  display: block !important;
+}
+
+.logs-table-wrapper::-webkit-scrollbar-track {
+  background: rgba(148, 163, 184, 0.08);
+  border-radius: 8px;
+  margin: 0 4px;
+}
+
+.logs-table-wrapper::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, var(--mac-accent, #3b82f6) 0%, #60a5fa 100%);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.logs-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #2563eb 0%, var(--mac-accent, #3b82f6) 100%);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.5);
+}
+
+html.dark .logs-table-wrapper::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+html.dark .logs-table-wrapper::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.35) 100%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+html.dark .logs-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.5) 100%);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 </style>

@@ -22,29 +22,35 @@ defineProps<{
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px;
+  padding: 16px 22px;
   gap: 16px;
+  min-height: 58px;
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .mac-list-text {
   text-align: left;
-}
-
-.mac-list-label {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--mac-text);
-}
-
-.mac-list-sublabel {
-  font-size: 0.8rem;
-  color: var(--mac-text-secondary);
-  margin-top: 4px;
+  flex: 1 1 auto;
+  min-width: 60px;
+  overflow: hidden;
+  padding-right: 8px;
 }
 
 .mac-list-control {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+  max-width: none;
+}
+
+.mac-list-control :deep(.btn) {
+  min-width: fit-content;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 </style>

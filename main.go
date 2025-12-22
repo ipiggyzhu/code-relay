@@ -73,6 +73,7 @@ func main() {
 	commonConfigService := services.NewCommonConfigService()
 	claudeSettings := services.NewClaudeSettingsService(providerRelay.Addr(), commonConfigService)
 	codexSettings := services.NewCodexSettingsService(providerRelay.Addr(), commonConfigService)
+	geminiSettings := services.NewGeminiSettingsService(providerRelay.Addr(), commonConfigService)
 	autoStartService := services.NewAutoStartService()
 	appSettings := services.NewAppSettingsService(autoStartService)
 	mcpService := services.NewMCPService()
@@ -104,6 +105,7 @@ func main() {
 			application.NewService(commonConfigService),
 			application.NewService(claudeSettings),
 			application.NewService(codexSettings),
+			application.NewService(geminiSettings),
 			application.NewService(logService),
 			application.NewService(appSettings),
 			application.NewService(mcpService),

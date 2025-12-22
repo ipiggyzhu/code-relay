@@ -10,7 +10,7 @@
           @click="toggleMetric(metric.key)"
         >
           <span class="dot" :style="{ backgroundColor: metric.color }"></span>
-          {{ metric.label }}
+          <span class="legend-text">{{ metric.label }}</span>
         </button>
       </div>
     </div>
@@ -255,10 +255,10 @@ const chartOption = computed(() => {
       }
     },
     grid: {
-      top: 30,
-      right: 60,
-      bottom: 30,
-      left: 60,
+      top: 45,
+      right: 50,
+      bottom: 25,
+      left: 50,
       containLabel: true
     },
     xAxis: {
@@ -269,7 +269,9 @@ const chartOption = computed(() => {
       axisTick: { show: false },
       axisLabel: {
         color: '#9ca3af',
-        fontSize: 11,
+        fontSize: 10,
+        interval: 0,
+        hideOverlap: false,
         formatter: (value: string) => {
           const parts = value.split('-')
           if (parts.length >= 3) {
@@ -279,6 +281,7 @@ const chartOption = computed(() => {
         }
       },
       axisPointer: {
+        show: true,
         label: {
           backgroundColor: '#6b7280'
         }
@@ -288,8 +291,13 @@ const chartOption = computed(() => {
       {
         type: 'value',
         name: t('components.main.providers.tokens'),
-        nameTextStyle: { color: '#9ca3af', padding: [0, 40, 0, 0] },
-        nameGap: 15,
+        nameTextStyle: { 
+          color: '#9ca3af', 
+          fontSize: 11,
+          align: 'left',
+          padding: [0, 0, 0, -38]
+        },
+        nameGap: 18,
         splitLine: { lineStyle: { color: '#f3f4f6' } },
         axisLabel: {
           color: '#9ca3af',
@@ -305,7 +313,13 @@ const chartOption = computed(() => {
         type: 'value',
         name: t('components.main.heatmap.metrics.cost'),
         position: 'right',
-        nameTextStyle: { color: '#9ca3af', padding: [0, 10, 0, 0] },
+        nameTextStyle: { 
+          color: '#9ca3af', 
+          fontSize: 11,
+          align: 'right',
+          padding: [0, -38, 0, 0]
+        },
+        nameGap: 18,
         splitLine: { show: false },
         axisLabel: {
           color: '#9ca3af',
@@ -328,61 +342,94 @@ const chartOption = computed(() => {
 <style scoped>
 .usage-chart-container {
   width: 100%;
-  height: 320px;
-  padding-top: 1rem;
+  height: 340px;
+  padding-top: 0.5rem;
   display: flex;
   flex-direction: column;
+  overflow: visible;
 }
 
 .chart-header {
   display: flex;
   justify-content: center;
-  margin-bottom: 0.5rem;
+  margin-bottom: 1.5rem;
   padding: 0 0.5rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .chart-legend {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.75rem;
   flex-wrap: wrap;
   justify-content: center;
+  align-items: center;
+  width: 100%;
 }
 
 .legend-item {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.8rem;
-  color: var(--mac-text-secondary, #86868b);
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  line-height: 1;
+  color: var(--mac-text-secondary, #64748b);
   cursor: pointer;
-  background: transparent;
-  border: none;
-  padding: 4px 8px;
-  transition: color 0.2s;
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  border-radius: 20px;
+  padding: 8px 16px;
+  margin: 0;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   white-space: nowrap;
-  opacity: 0.6;
+  flex: 0 0 auto;
+  min-width: max-content;
+  box-sizing: border-box;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
 .legend-item:hover {
-  opacity: 0.85;
+  background: rgba(148, 163, 184, 0.1);
+  border-color: rgba(148, 163, 184, 0.2);
+  transform: translateY(-1px);
 }
 
 .legend-item.active {
-  color: var(--mac-text, #f5f5f7);
-  font-weight: 500;
-  opacity: 1;
+  color: var(--mac-text, #0f172a);
+  background: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  border-color: rgba(148, 163, 184, 0.3);
+}
+
+html.dark .legend-item {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
+}
+
+html.dark .legend-item.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f8fafc;
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .dot {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8);
+}
+
+html.dark .dot {
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.5);
 }
 
 .chart {
   flex: 1;
   width: 100%;
-  min-height: 250px;
+  min-height: 240px;
 }
 </style>

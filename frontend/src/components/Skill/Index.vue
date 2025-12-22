@@ -1,42 +1,28 @@
 <template>
   <div class="main-shell">
-    <div class="global-actions">
-      <p class="global-eyebrow">{{ t('components.skill.hero.eyebrow') }}</p>
-      <button class="ghost-icon" :title="t('components.skill.actions.back')"
-        :data-tooltip="t('components.skill.actions.back')" @click="goHome">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-            stroke-linejoin="round" />
-        </svg>
-      </button>
-      <button class="ghost-icon" :title="t('components.skill.actions.refresh')"
-        :data-tooltip="t('components.skill.actions.refresh')" :disabled="refreshing" @click="refresh">
-        <svg viewBox="0 0 24 24" aria-hidden="true" :class="{ spin: refreshing }">
-          <path d="M20.5 8a8.5 8.5 0 10-2.38 7.41" fill="none" stroke="currentColor" stroke-width="1.5"
-            stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M20.5 4v4h-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-            stroke-linejoin="round" />
-        </svg>
-      </button>
-      <button class="ghost-icon" :title="t('components.skill.repos.open')"
-        :data-tooltip="t('components.skill.repos.open')" @click="openRepoModal">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M5 5h14v6H5zM7 13h10v6H7z" fill="none" stroke="currentColor" stroke-width="1.5"
-            stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M12 7.5v1M12 15.5v1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-        </svg>
-      </button>
-    </div>
+    <PageHeader :title="t('components.skill.hero.title')">
+      <template #actions>
+        <button class="ghost-icon" :title="t('components.skill.actions.refresh')"
+          :data-tooltip="t('components.skill.actions.refresh')" :disabled="refreshing" @click="refresh">
+          <svg viewBox="0 0 24 24" aria-hidden="true" :class="{ spin: refreshing }">
+            <path d="M20.5 8a8.5 8.5 0 10-2.38 7.41" fill="none" stroke="currentColor" stroke-width="1.5"
+              stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M20.5 4v4h-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+              stroke-linejoin="round" />
+          </svg>
+        </button>
+        <button class="ghost-icon" :title="t('components.skill.repos.open')"
+          :data-tooltip="t('components.skill.repos.open')" @click="openRepoModal">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 5h14v6H5zM7 13h10v6H7z" fill="none" stroke="currentColor" stroke-width="1.5"
+              stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M12 7.5v1M12 15.5v1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+          </svg>
+        </button>
+      </template>
+    </PageHeader>
 
     <div class="contrib-page skill-page">
-      <header class="skill-hero">
-        <div class="skill-hero-text">
-          <h1>Claude Skill</h1>
-          <p class="skill-lead">
-            {{ t('components.skill.hero.lead') }}
-          </p>
-        </div>
-      </header>
 
       <section class="skill-list-section">
         <div v-if="loading" class="skill-empty">{{ t('components.skill.list.loading') }}</div>
@@ -151,6 +137,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import PageHeader from '../Navigation/PageHeader.vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { Browser } from '@wailsio/runtime'
@@ -243,9 +230,6 @@ const closeRepoModal = () => {
   repoModalOpen.value = false
 }
 
-const goHome = () => {
-  router.push('/')
-}
 
 const openExternal = (target: string) => {
   if (!target) return
