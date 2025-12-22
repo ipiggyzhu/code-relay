@@ -194,35 +194,73 @@ func (us *UpdateService) GetCurrentExePath() (string, error) {
 // createUpdateScript 创建 Windows 更新批处理脚本
 func (us *UpdateService) createUpdateScript(currentExe, newExe string) string {
 	exeName := filepath.Base(currentExe)
-	// 批处理脚本：等待程序退出 -> 替换文件 -> 重启程序
+	installDir := filepath.Dir(currentExe)
+
+	// 使用 PowerShell 脚本来处理更新，支持管理员权限提升
 	return fmt.Sprintf(`@echo off
 chcp 65001 >nul
-echo 正在更新 Code Relay...
+setlocal enabledelayedexpansion
+
+echo ========================================
+echo   Code Relay 自动更新
+echo ========================================
+echo.
+
+set "NEW_EXE=%s"
+set "CURRENT_EXE=%s"
+set "INSTALL_DIR=%s"
+set "EXE_NAME=%s"
+
 echo 等待程序退出...
-timeout /t 3 /nobreak >nul
+timeout /t 2 /nobreak >nul
 
 :waitloop
-tasklist /FI "IMAGENAME eq %s" 2>NUL | find /I "%s" >NUL
+tasklist /FI "IMAGENAME eq %%EXE_NAME%%" 2>NUL | find /I "%%EXE_NAME%%" >NUL
 if not errorlevel 1 (
-    echo 等待程序关闭...
-    timeout /t 2 /nobreak >nul
+    echo 程序仍在运行，等待中...
+    timeout /t 1 /nobreak >nul
     goto waitloop
 )
 
-echo 正在替换文件...
-copy /Y "%s" "%s"
+echo 程序已退出，开始更新...
+echo.
+
+:: 尝试直接复制
+echo 正在复制文件...
+copy /Y "%%NEW_EXE%%" "%%CURRENT_EXE%%" >nul 2>&1
+if not errorlevel 1 (
+    echo 更新成功！
+    goto success
+)
+
+:: 如果直接复制失败，尝试使用 PowerShell 提升权限
+echo 需要管理员权限，正在请求...
+powershell -Command "Start-Process -FilePath 'cmd.exe' -ArgumentList '/c copy /Y \"%s\" \"%s\" && echo 更新成功' -Verb RunAs -Wait" 2>nul
 if errorlevel 1 (
-    echo 更新失败！请手动替换文件。
-    echo 新文件位置: %s
+    echo.
+    echo ========================================
+    echo   更新失败！
+    echo ========================================
+    echo.
+    echo 请手动将以下文件复制到安装目录：
+    echo   源文件: %%NEW_EXE%%
+    echo   目标: %%CURRENT_EXE%%
+    echo.
     pause
     exit /b 1
 )
 
-echo 更新完成，正在重启...
+:success
+echo.
+echo ========================================
+echo   更新完成！
+echo ========================================
+echo.
+echo 正在启动新版本...
 timeout /t 1 /nobreak >nul
-start "" "%s"
+start "" "%%CURRENT_EXE%%"
 exit /b 0
-`, exeName, exeName, newExe, currentExe, newExe, currentExe)
+`, newExe, currentExe, installDir, exeName, newExe, currentExe)
 }
 
 // findPlatformAsset 查找对应平台的资源文件
