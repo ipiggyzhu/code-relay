@@ -157,42 +157,15 @@ jobs:
         with:
           files: release-assets/*
           body: |
-            ## v1.0.7 更新内容
+            ## v1.0.8 更新内容
 
-            ### 无感自动更新
-            - 后台自动检测新版本（启动后30秒开始，每小时检查一次）
-            - 发现新版本后静默下载
-            - 程序关闭时自动安装更新并重启
-
-            ### 自动更新修复
-            - 修复 PowerShell 提升权限时的引号转义问题
-            - 使用临时批处理文件避免复杂的引号嵌套
-            - 添加更新日志文件 (`%TEMP%\code-relay-update.log`) 便于排查问题
-            - 添加调试日志记录更新路径信息
-
-            ### UI 优化
-            - 新增导航组件
-            - 新增 GlassDropdown 组件
-            - 侧边栏状态持久化
-            - 图表图例样式优化
-
-            ### 新功能
-            - 支持 Gemini 设置
+            今日无事，修个 bug
 
             ## 安装说明
 
             - **Windows**：下载 `CodeRelay-amd64-installer.exe` 运行安装，或下载 `CodeRelay.exe` 直接运行
             - **macOS (Apple Silicon)**：下载 `coderelay-macos-arm64.zip`
             - **macOS (Intel)**：下载 `coderelay-macos-amd64.zip`
-
-            ## 自动更新说明
-
-            从此版本开始，程序会在后台自动检测更新。当发现新版本时：
-            1. 自动下载新版本到临时目录
-            2. 关闭程序时自动安装并重启
-            3. 如遇权限问题会弹出 UAC 提示
-
-            如需查看更新日志，请检查 `%TEMP%\code-relay-update.log` 文件。
           draft: false
           prerelease: false
         env:

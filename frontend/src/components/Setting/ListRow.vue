@@ -22,7 +22,7 @@ defineProps<{
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 22px;
+  padding: 16px 32px 16px 22px;
   gap: 16px;
   min-height: 58px;
   box-sizing: border-box;

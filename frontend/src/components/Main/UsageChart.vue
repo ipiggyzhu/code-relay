@@ -270,8 +270,8 @@ const chartOption = computed(() => {
       axisLabel: {
         color: '#9ca3af',
         fontSize: 10,
-        interval: 0,
-        hideOverlap: false,
+        interval: 'auto',
+        hideOverlap: true,
         formatter: (value: string) => {
           const parts = value.split('-')
           if (parts.length >= 3) {

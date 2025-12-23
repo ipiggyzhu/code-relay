@@ -4,8 +4,6 @@
       <template #actions>
         <button
           class="ghost-icon"
-          :title="t('components.mcp.controls.refresh')"
-          :data-tooltip="t('components.mcp.controls.refresh')"
           :disabled="loading"
           @click="reload"
         >

@@ -2,8 +2,7 @@
   <div class="main-shell">
     <PageHeader :title="t('components.skill.hero.title')">
       <template #actions>
-        <button class="ghost-icon" :title="t('components.skill.actions.refresh')"
-          :data-tooltip="t('components.skill.actions.refresh')" :disabled="refreshing" @click="refresh">
+        <button class="ghost-icon" :disabled="refreshing" @click="refresh">
           <svg viewBox="0 0 24 24" aria-hidden="true" :class="{ spin: refreshing }">
             <path d="M20.5 8a8.5 8.5 0 10-2.38 7.41" fill="none" stroke="currentColor" stroke-width="1.5"
               stroke-linecap="round" stroke-linejoin="round" />
@@ -11,8 +10,7 @@
               stroke-linejoin="round" />
           </svg>
         </button>
-        <button class="ghost-icon" :title="t('components.skill.repos.open')"
-          :data-tooltip="t('components.skill.repos.open')" @click="openRepoModal">
+        <button class="ghost-icon" @click="openRepoModal">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M5 5h14v6H5zM7 13h10v6H7z" fill="none" stroke="currentColor" stroke-width="1.5"
               stroke-linecap="round" stroke-linejoin="round" />
@@ -35,7 +33,7 @@
                 <h3>{{ skill.name }}</h3>
               </div>
               <div class="skill-card-actions">
-                <button type="button" class="ghost-icon sm" :title="t('components.skill.actions.view')"
+                <button type="button" class="ghost-icon sm"
                   :data-tooltip="t('components.skill.actions.view')" @click="openGithub(skill.readme_url)">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
@@ -44,7 +42,6 @@
                   </svg>
                 </button>
                 <button type="button" v-if="skill.installed" class="ghost-icon sm danger"
-                  :title="t('components.skill.actions.uninstall')"
                   :data-tooltip="t('components.skill.actions.uninstall')" :disabled="isUninstallingSkill(skill)"
                   @click="handleUninstall(skill)">
                   <svg v-if="!isUninstallingSkill(skill)" viewBox="0 0 24 24" aria-hidden="true">
@@ -56,7 +53,6 @@
                   <span v-else class="skill-action-spinner" aria-hidden="true"></span>
                 </button>
                 <button type="button" v-else class="ghost-icon sm"
-                  :title="canInstallSkill(skill) ? t('components.skill.actions.install') : t('components.skill.list.missingRepo')"
                   :data-tooltip="canInstallSkill(skill) ? t('components.skill.actions.install') : t('components.skill.list.missingRepo')"
                   :disabled="isInstallingSkill(skill) || !canInstallSkill(skill)" @click="handleInstall(skill)">
                   <svg v-if="!isInstallingSkill(skill)" viewBox="0 0 24 24" aria-hidden="true">
@@ -87,7 +83,7 @@
           <div class="repo-form-actions">
             <input v-model="repoForm.branch" type="text" :placeholder="t('components.skill.repos.branchPlaceholder')"
               :disabled="repoBusy" />
-            <button class="ghost-icon" type="submit" :disabled="repoBusy" :title="t('components.skill.repos.addLabel')"
+            <button class="ghost-icon" type="submit" :disabled="repoBusy"
               :data-tooltip="t('components.skill.repos.addLabel')">
               <svg viewBox="0 0 24 24" aria-hidden="true" :class="{ spin: repoBusy }">
                 <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
@@ -107,7 +103,7 @@
                 <span class="repo-branch">{{ t('components.skill.repos.branchLabel', { branch: repo.branch }) }}</span>
               </div>
               <div class="skill-repo-actions">
-                <button class="ghost-icon sm" type="button" :title="t('components.skill.repos.viewLabel')"
+                <button class="ghost-icon sm" type="button"
                   :data-tooltip="t('components.skill.repos.viewLabel')" @click="openRepoGithub(repo)">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M12 5h7v7M19 5l-9 9" fill="none" stroke="currentColor" stroke-width="1.6"
@@ -116,7 +112,7 @@
                       stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
                   </svg>
                 </button>
-                <button class="ghost-icon sm danger" type="button" :title="t('components.skill.repos.removeLabel')"
+                <button class="ghost-icon sm danger" type="button"
                   :data-tooltip="t('components.skill.repos.removeLabel')" :disabled="repoBusy"
                   @click="removeRepo(repo)">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
