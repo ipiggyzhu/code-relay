@@ -16,13 +16,16 @@ export interface PendingUpdateInfo {
   filePath: string
 }
 
-export const checkForUpdates = async (): Promise<UpdateInfo | null> => {
+export const checkForUpdates = async (): Promise<UpdateInfo> => {
   try {
     const result = await CheckForUpdates()
+    if (!result) {
+      throw new Error('Failed to get update info from server')
+    }
     return result as UpdateInfo
   } catch (error) {
     console.error('Failed to check for updates:', error)
-    return null
+    throw error
   }
 }
 

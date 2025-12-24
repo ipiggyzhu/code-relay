@@ -210,7 +210,8 @@
         "downloadFailed": "Download failed",
         "installFailed": "Installation failed",
         "viewRelease": "View release",
-        "close": "Close"
+        "close": "Close",
+        "checkFailed": "Failed to check for updates, please try again later"
       }
     },
     "logs": {

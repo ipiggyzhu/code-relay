@@ -212,7 +212,8 @@
         "downloadFailed": "下载失败",
         "installFailed": "安装失败",
         "viewRelease": "查看发布页",
-        "close": "关闭"
+        "close": "关闭",
+        "checkFailed": "检查更新失败，请稍后重试"
       }
     },
     "logs": {

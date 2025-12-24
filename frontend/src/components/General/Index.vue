@@ -86,12 +86,14 @@ const openUpdateModal = async () => {
   updateModalState.downloadedPath = ''
   updateModalState.downloading = false
   updateModalState.installing = false
+  updateModalState.updateInfo = null
 
   try {
     const info = await checkForUpdatesService()
     updateModalState.updateInfo = info
-  } catch (error) {
-    updateModalState.error = String(error)
+  } catch (error: any) {
+    console.error('Failed to check for updates:', error)
+    updateModalState.error = error?.message || t('components.main.update.checkFailed')
   } finally {
     updateModalState.checking = false
   }
