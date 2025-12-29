@@ -83,6 +83,10 @@ export type ProviderDailyStat = {
   cache_create_tokens: number
   cache_read_tokens: number
   cost_total: number
+  // 响应时间统计
+  avg_duration_sec: number
+  min_duration_sec: number
+  max_duration_sec: number
 }
 
 export const fetchProviderDailyStats = async (

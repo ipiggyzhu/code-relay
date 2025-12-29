@@ -324,6 +324,7 @@ func (ls *LogService) ProviderDailyStats(platform string) ([]ProviderDailyStat, 
 			"reasoning_tokens",
 			"cache_create_tokens",
 			"cache_read_tokens",
+			"duration_sec",
 			"created_at",
 		),
 	}
@@ -339,6 +340,8 @@ func (ls *LogService) ProviderDailyStats(platform string) ([]ProviderDailyStat, 
 	}
 
 	statMap := map[string]*ProviderDailyStat{}
+	// 临时存储每个 provider 的响应时间列表，用于计算 min/max/avg
+	durationMap := map[string][]float64{}
 	for _, record := range records {
 		provider := strings.TrimSpace(record.GetString("provider"))
 		if provider == "" {
@@ -360,6 +363,7 @@ func (ls *LogService) ProviderDailyStats(platform string) ([]ProviderDailyStat, 
 		if stat == nil {
 			stat = &ProviderDailyStat{Provider: provider}
 			statMap[provider] = stat
+			durationMap[provider] = []float64{}
 		}
 		httpCode := record.GetInt("http_code")
 		input := record.GetInt("input_tokens")
@@ -367,6 +371,7 @@ func (ls *LogService) ProviderDailyStats(platform string) ([]ProviderDailyStat, 
 		reasoning := record.GetInt("reasoning_tokens")
 		cacheCreate := record.GetInt("cache_create_tokens")
 		cacheRead := record.GetInt("cache_read_tokens")
+		durationSec := record.GetFloat64("duration_sec")
 		usage := modelpricing.UsageSnapshot{
 			InputTokens:       input,
 			OutputTokens:      output,
@@ -387,12 +392,35 @@ func (ls *LogService) ProviderDailyStats(platform string) ([]ProviderDailyStat, 
 		stat.CacheCreateTokens += int64(cacheCreate)
 		stat.CacheReadTokens += int64(cacheRead)
 		stat.CostTotal += cost.TotalCost
+		// 记录响应时间（只记录有效的响应时间）
+		if durationSec > 0 {
+			durationMap[provider] = append(durationMap[provider], durationSec)
+		}
 	}
 	
 	stats := make([]ProviderDailyStat, 0, len(statMap))
 	for _, stat := range statMap {
 		if stat.TotalRequests > 0 {
 			stat.SuccessRate = float64(stat.SuccessfulRequests) / float64(stat.TotalRequests)
+		}
+		// 计算响应时间统计
+		durations := durationMap[stat.Provider]
+		if len(durations) > 0 {
+			var sum float64
+			minDur := durations[0]
+			maxDur := durations[0]
+			for _, d := range durations {
+				sum += d
+				if d < minDur {
+					minDur = d
+				}
+				if d > maxDur {
+					maxDur = d
+				}
+			}
+			stat.AvgDurationSec = sum / float64(len(durations))
+			stat.MinDurationSec = minDur
+			stat.MaxDurationSec = maxDur
 		}
 		stats = append(stats, *stat)
 	}
@@ -578,17 +606,21 @@ type LogStats struct {
 }
 
 type ProviderDailyStat struct {
-	Provider          string  `json:"provider"`
-	TotalRequests     int64   `json:"total_requests"`
+	Provider           string  `json:"provider"`
+	TotalRequests      int64   `json:"total_requests"`
 	SuccessfulRequests int64   `json:"successful_requests"`
-	FailedRequests    int64   `json:"failed_requests"`
-	SuccessRate       float64 `json:"success_rate"`
-	InputTokens       int64   `json:"input_tokens"`
-	OutputTokens      int64   `json:"output_tokens"`
-	ReasoningTokens   int64   `json:"reasoning_tokens"`
-	CacheCreateTokens int64   `json:"cache_create_tokens"`
-	CacheReadTokens   int64   `json:"cache_read_tokens"`
-	CostTotal         float64 `json:"cost_total"`
+	FailedRequests     int64   `json:"failed_requests"`
+	SuccessRate        float64 `json:"success_rate"`
+	InputTokens        int64   `json:"input_tokens"`
+	OutputTokens       int64   `json:"output_tokens"`
+	ReasoningTokens    int64   `json:"reasoning_tokens"`
+	CacheCreateTokens  int64   `json:"cache_create_tokens"`
+	CacheReadTokens    int64   `json:"cache_read_tokens"`
+	CostTotal          float64 `json:"cost_total"`
+	// 响应时间统计
+	AvgDurationSec float64 `json:"avg_duration_sec"` // 平均响应时间（秒）
+	MinDurationSec float64 `json:"min_duration_sec"` // 最小响应时间（秒）
+	MaxDurationSec float64 `json:"max_duration_sec"` // 最大响应时间（秒）
 }
 
 type LogStatsSeries struct {

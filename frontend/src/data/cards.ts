@@ -8,6 +8,8 @@ export type AutomationCard = {
   tint: string
   accent: string
   enabled: boolean
+  // 多 API Key 支持 - 同一供应商可配置多个 Key 进行轮换
+  apiKeys?: string[]
   // 模型白名单：声明 provider 支持的模型（精确或通配符）
   supportedModels?: Record<string, boolean>
   // 模型映射：external model -> internal model

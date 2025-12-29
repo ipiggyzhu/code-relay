@@ -122,6 +122,7 @@
         "tokens": "Tokens",
         "cost": "Cost",
         "successRate": "Success rate",
+        "avgLatency": "Avg latency",
         "loading": "Refreshing...",
         "noData": "No data yet today",
         "names": {
@@ -155,6 +156,9 @@
           "officialSite": "https://vendor.com",
           "icon": "e.g. aicoding, kimi"
         },
+        "addKey": "Add API Key",
+        "removeKey": "Remove this Key",
+        "multiKeyHint": "When multiple keys are configured, the system will automatically rotate them. If one key fails, it will try the next one.",
         "hints": {
           "level": "Lower numbers = higher priority. Level 1 providers are tried first, then Level 2, etc."
         },
@@ -359,7 +363,8 @@
       },
       "platforms": {
         "claude": "Claude Code",
-        "codex": "Codex"
+        "codex": "Codex",
+        "gemini": "Gemini"
       },
       "form": {
         "createTitle": "Create MCP server",

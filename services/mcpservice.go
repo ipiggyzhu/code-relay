@@ -21,8 +21,11 @@ const (
 	claudeMcpFile   = ".claude.json"
 	codexDirName    = ".codex"
 	codexConfigFile = "config.toml"
+	geminiDirName   = ".gemini"
+	geminiConfigFile = "settings.json"
 	platClaudeCode  = "claude-code"
 	platCodex       = "codex"
+	platGemini      = "gemini"
 )
 
 var builtInServers = map[string]rawMCPServer{
@@ -62,6 +65,7 @@ type MCPServer struct {
 	EnablePlatform      []string          `json:"enable_platform"`
 	EnabledInClaude     bool              `json:"enabled_in_claude"`
 	EnabledInCodex      bool              `json:"enabled_in_codex"`
+	EnabledInGemini     bool              `json:"enabled_in_gemini"`
 	MissingPlaceholders []string          `json:"missing_placeholders"`
 }
 
@@ -103,6 +107,7 @@ func (ms *MCPService) ListServers() ([]MCPServer, error) {
 
 	claudeEnabled := loadClaudeEnabledServers()
 	codexEnabled := loadCodexEnabledServers()
+	geminiEnabled := loadGeminiEnabledServers()
 
 	names := make([]string, 0, len(config))
 	for name := range config {
@@ -127,6 +132,7 @@ func (ms *MCPService) ListServers() ([]MCPServer, error) {
 			EnablePlatform:  platforms,
 			EnabledInClaude: containsNormalized(claudeEnabled, name),
 			EnabledInCodex:  containsNormalized(codexEnabled, name),
+			EnabledInGemini: containsNormalized(geminiEnabled, name),
 		}
 		server.MissingPlaceholders = detectPlaceholders(server.URL, server.Args)
 		servers = append(servers, server)
@@ -171,6 +177,7 @@ func (ms *MCPService) SaveServers(servers []MCPServer) error {
 			EnablePlatform:  platforms,
 			EnabledInClaude: server.EnabledInClaude,
 			EnabledInCodex:  server.EnabledInCodex,
+			EnabledInGemini: server.EnabledInGemini,
 		}
 		raw[name] = rawMCPServer{
 			Type:           typ,
@@ -199,6 +206,9 @@ func (ms *MCPService) SaveServers(servers []MCPServer) error {
 		return err
 	}
 	if err := ms.syncCodexServers(normalized); err != nil {
+		return err
+	}
+	if err := ms.syncGeminiServers(normalized); err != nil {
 		return err
 	}
 	return nil
@@ -362,6 +372,8 @@ func normalizePlatform(value string) (string, bool) {
 		return "claude-code", true
 	case "codex":
 		return "codex", true
+	case "gemini", "gemini-cli", "gemini_cli":
+		return "gemini", true
 	default:
 		return "", false
 	}
@@ -485,6 +497,29 @@ func loadCodexEnabledServers() map[string]struct{} {
 	return result
 }
 
+func loadGeminiEnabledServers() map[string]struct{} {
+	result := map[string]struct{}{}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return result
+	}
+	path := filepath.Join(home, geminiDirName, geminiConfigFile)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return result
+	}
+	var payload struct {
+		Servers map[string]json.RawMessage `json:"mcpServers"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return result
+	}
+	for name := range payload.Servers {
+		result[strings.ToLower(strings.TrimSpace(name))] = struct{}{}
+	}
+	return result
+}
+
 func (ms *MCPService) mergeImportedServers(target, imported map[string]rawMCPServer) bool {
 	changed := false
 	for name, entry := range imported {
@@ -600,6 +635,34 @@ func (ms *MCPService) syncCodexServers(servers []MCPServer) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
+func (ms *MCPService) syncGeminiServers(servers []MCPServer) error {
+	path, err := geminiConfigPath()
+	if err != nil {
+		return err
+	}
+	desired := make(map[string]map[string]any)
+	for _, server := range servers {
+		if !platformContains(server.EnablePlatform, platGemini) {
+			continue
+		}
+		desired[server.Name] = buildGeminiEntry(server)
+	}
+	payload := make(map[string]any)
+	if data, err := os.ReadFile(path); err == nil && len(data) > 0 {
+		if err := json.Unmarshal(data, &payload); err != nil {
+			payload = make(map[string]any)
+		}
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	payload["mcpServers"] = desired
+	data, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o644)
+}
+
 func platformContains(platforms []string, target string) bool {
 	for _, value := range platforms {
 		if value == target {
@@ -642,6 +705,23 @@ func buildCodexEntry(server MCPServer) map[string]any {
 	return entry
 }
 
+func buildGeminiEntry(server MCPServer) map[string]any {
+	entry := make(map[string]any)
+	if server.Type == "http" {
+		// Gemini 使用 url 或 httpUrl 字段
+		entry["url"] = server.URL
+	} else {
+		entry["command"] = server.Command
+		if len(server.Args) > 0 {
+			entry["args"] = server.Args
+		}
+		if len(server.Env) > 0 {
+			entry["env"] = server.Env
+		}
+	}
+	return entry
+}
+
 func claudeConfigPath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -660,6 +740,18 @@ func codexConfigPath() (string, error) {
 		return "", err
 	}
 	return filepath.Join(dir, codexConfigFile), nil
+}
+
+func geminiConfigPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Join(home, geminiDirName)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, geminiConfigFile), nil
 }
 
 func detectPlaceholders(url string, args []string) []string {

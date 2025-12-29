@@ -218,7 +218,7 @@ func (prs *ProviderRelayService) proxyHandler(kind string, endpoint string) gin.
 
 		active := make([]Provider, 0, len(providers))
 		for _, provider := range providers {
-			// 基础过滤：enabled、URL、APIKey
+			// 基础过滤：enabled、URL
 			if !provider.Enabled {
 				log.Printf("[Relay] 跳过 provider %s: 未启用", provider.Name)
 				continue
@@ -227,7 +227,8 @@ func (prs *ProviderRelayService) proxyHandler(kind string, endpoint string) gin.
 				log.Printf("[Relay] 跳过 provider %s: 无 API URL", provider.Name)
 				continue
 			}
-			if provider.APIKey == "" {
+			// 使用新的 GetAPIKeys 方法检查是否有可用的 Key
+			if len(provider.GetAPIKeys()) == 0 {
 				log.Printf("[Relay] 跳过 provider %s: 无 API Key", provider.Name)
 				continue
 			}
@@ -244,7 +245,7 @@ func (prs *ProviderRelayService) proxyHandler(kind string, endpoint string) gin.
 				continue
 			}
 
-			log.Printf("[Relay] 添加 provider: %s", provider.Name)
+			log.Printf("[Relay] 添加 provider: %s (可用 Keys: %d)", provider.Name, len(provider.GetAPIKeys()))
 			active = append(active, provider)
 		}
 		
@@ -292,10 +293,11 @@ func (prs *ProviderRelayService) proxyHandler(kind string, endpoint string) gin.
 		var lastBody []byte
 		var lastHeaders http.Header
 		bodyCache := make(map[string][]byte)
-		
-		for i, provider := range active {
+
+		for i := range active {
+			provider := &active[i] // 使用指针以便修改 currentKeyIndex
 			isLastProvider := (i == totalProviders - 1)
-			
+
 			effectiveModel := provider.GetEffectiveModel(requestedModel)
 
 			currentBodyBytes := bodyBytes
@@ -315,41 +317,68 @@ func (prs *ProviderRelayService) proxyHandler(kind string, endpoint string) gin.
 				}
 			}
 
-			status, headers, body, err := prs.forwardRequest(c, kind, provider, endpoint, query, clientHeaders, currentBodyBytes, isStream, effectiveModel)
+			// 多 Key 轮换循环：同一 provider 的多个 Key 依次尝试
+			// 缓存 keys 数组，避免在循环中多次调用 GetAPIKeys()
+			keys := provider.GetAPIKeys()
+			numKeys := len(keys)
+			for keyAttempt := 0; keyAttempt < numKeys; keyAttempt++ {
+				// 安全边界检查
+				keyIndex := keyAttempt % numKeys
+				currentKey := keys[keyIndex]
+				isLastKey := (keyAttempt == numKeys-1)
 
-			if err != nil {
-				log.Printf("[Relay] Provider %s 请求失败: %v", provider.Name, err)
-				lastErr = err
-				continue
+				if numKeys > 1 {
+					log.Printf("[Relay] Provider %s 尝试 Key %d/%d", provider.Name, keyAttempt+1, numKeys)
+				}
+
+				status, headers, body, err := prs.forwardRequestWithKey(c, kind, *provider, currentKey, endpoint, query, clientHeaders, currentBodyBytes, isStream, effectiveModel)
+
+				if err != nil {
+					log.Printf("[Relay] Provider %s Key %d 请求失败: %v", provider.Name, keyAttempt+1, err)
+					lastErr = err
+					// 尝试下一个 Key（通过循环自动递增 keyAttempt）
+					if !isLastKey {
+						continue
+					}
+					// 所有 Key 都失败，尝试下一个 provider
+					break
+				}
+
+				// status = -1 表示流式响应已经直接写入客户端，直接返回
+				if status == -1 {
+					log.Printf("[Relay] Provider %s 流式转发完成", provider.Name)
+					return
+				}
+
+				// 保存最后一次响应
+				lastStatus = status
+				lastHeaders = headers
+				lastBody = body
+
+				// 如果成功 (2xx)，立即返回
+				if status >= 200 && status < 300 {
+					log.Printf("[Relay] Provider %s 成功, status=%d", provider.Name, status)
+					prs.writeResponse(c, status, headers, body)
+					return
+				}
+
+				// 如果是 401/403 认证错误，尝试下一个 Key（通过循环自动递增 keyAttempt）
+				if (status == 401 || status == 403) && !isLastKey {
+					log.Printf("[Relay] Provider %s Key %d 认证失败 (status=%d), 尝试下一个 Key", provider.Name, keyAttempt+1, status)
+					continue
+				}
+
+				// 如果失败但是最后一个 provider 的最后一个 Key，返回错误响应
+				if isLastProvider && isLastKey {
+					log.Printf("[Relay] 最后一个 provider %s 最后一个 Key 失败, status=%d, 返回错误给客户端", provider.Name, status)
+					prs.writeResponse(c, status, headers, body)
+					return
+				}
+
+				// 其他错误（非认证错误），直接尝试下一个 provider
+				log.Printf("[Relay] Provider %s 失败, status=%d, 尝试下一个 provider", provider.Name, status)
+				break
 			}
-
-			// status = -1 表示流式响应已经直接写入客户端，直接返回
-			if status == -1 {
-				log.Printf("[Relay] Provider %s 流式转发完成", provider.Name)
-				return
-			}
-
-			// 保存最后一次响应
-			lastStatus = status
-			lastHeaders = headers
-			lastBody = body
-
-			// 如果成功 (2xx)，立即返回
-			if status >= 200 && status < 300 {
-				log.Printf("[Relay] Provider %s 成功, status=%d", provider.Name, status)
-				prs.writeResponse(c, status, headers, body)
-				return
-			}
-
-			// 如果失败但是最后一个 provider，返回错误响应
-			if isLastProvider {
-				log.Printf("[Relay] 最后一个 provider %s 失败, status=%d, 返回错误给客户端", provider.Name, status)
-				prs.writeResponse(c, status, headers, body)
-				return
-			}
-
-			// 如果失败且还有其他 provider，继续尝试
-			log.Printf("[Relay] Provider %s 失败, status=%d, 尝试下一个 provider", provider.Name, status)
 		}
 
 		// 如果所有 provider 都失败了（可能是网络错误等）
@@ -406,7 +435,7 @@ var httpClient = &http.Client{
 	},
 }
 
-// forwardRequest 转发请求到上游 provider
+// forwardRequest 转发请求到上游 provider（使用 provider 的第一个 Key）
 // 返回值: (状态码, 响应头, 响应体, 错误)
 // - 返回响应数据，由调用者决定是否写入客户端
 // - 如果发生网络错误，返回 error，调用者可以尝试下一个 provider
@@ -414,6 +443,30 @@ func (prs *ProviderRelayService) forwardRequest(
 	c *gin.Context,
 	kind string,
 	provider Provider,
+	endpoint string,
+	query map[string]string,
+	clientHeaders map[string]string,
+	bodyBytes []byte,
+	isStream bool,
+	model string,
+) (int, http.Header, []byte, error) {
+	keys := provider.GetAPIKeys()
+	apiKey := ""
+	if len(keys) > 0 {
+		apiKey = keys[0]
+	}
+	return prs.forwardRequestWithKey(c, kind, provider, apiKey, endpoint, query, clientHeaders, bodyBytes, isStream, model)
+}
+
+// forwardRequestWithKey 转发请求到上游 provider（使用指定的 API Key）
+// 返回值: (状态码, 响应头, 响应体, 错误)
+// - 返回响应数据，由调用者决定是否写入客户端
+// - 如果发生网络错误，返回 error，调用者可以尝试下一个 provider/key
+func (prs *ProviderRelayService) forwardRequestWithKey(
+	c *gin.Context,
+	kind string,
+	provider Provider,
+	apiKey string,
 	endpoint string,
 	query map[string]string,
 	clientHeaders map[string]string,
@@ -439,10 +492,14 @@ func (prs *ProviderRelayService) forwardRequest(
 		IsStream: isStream,
 	}
 	start := time.Now()
-	
+
 	// 写入日志的函数
 	writeLog := func() {
-		requestLog.DurationSec = time.Since(start).Seconds()
+		// 注意：DurationSec 应该在收到响应后立即设置（TTFB），而不是在这里
+		// 如果 DurationSec 还是 0，说明请求失败了，使用总时间
+		if requestLog.DurationSec == 0 {
+			requestLog.DurationSec = time.Since(start).Seconds()
+		}
 		go func(rl *RequestLog) {
 			if rl.Platform == "" {
 				return
@@ -485,24 +542,27 @@ func (prs *ProviderRelayService) forwardRequest(
 	// 同时设置两种认证头，兼容不同的 API 服务
 	// - Authorization: Bearer xxx (标准 OAuth2 格式，大多数云服务使用)
 	// - x-api-key: xxx (Anthropic 官方格式，本地代理如 gcli2api 使用)
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", provider.APIKey))
-	req.Header.Set("x-api-key", provider.APIKey)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
+	req.Header.Set("x-api-key", apiKey)
 	// 强制设置 anthropic-version，仅针对 Claude 平台
 	if kind == "claude" && req.Header.Get("anthropic-version") == "" {
 		req.Header.Set("anthropic-version", "2023-06-01")
 	}
 
 	log.Printf("[Relay] 转发请求到 %s, model=%s, stream=%v", targetURL, model, isStream)
-	log.Printf("[Relay] 请求头: anthropic-version=%s, x-api-key=%s...", 
-		req.Header.Get("anthropic-version"), 
+	log.Printf("[Relay] 请求头: anthropic-version=%s, x-api-key=***%s",
+		req.Header.Get("anthropic-version"),
 		func() string {
 			key := req.Header.Get("x-api-key")
-			if len(key) > 8 {
-				return key[:8]
+			if len(key) > 4 {
+				return key[len(key)-4:] // 只显示最后 4 个字符
 			}
-			return key
+			return "****"
 		}())
-	
+
+	// 在发送请求前记录开始时间，确保 TTFB 测量准确
+	start = time.Now()
+
 	// 发送请求
 	resp, err := httpClient.Do(req)
 	if err != nil {
@@ -512,9 +572,13 @@ func (prs *ProviderRelayService) forwardRequest(
 		return 0, nil, nil, err
 	}
 
+	// 记录 TTFB（首字节时间）：从发送请求到收到响应头的时间
+	// 这是衡量 API 响应速度的关键指标，不包括响应体传输时间
+	requestLog.DurationSec = time.Since(start).Seconds()
+
 	status := resp.StatusCode
 	requestLog.HttpCode = status
-	log.Printf("[Relay] 收到响应, status=%d, content-type=%s", status, resp.Header.Get("Content-Type"))
+	log.Printf("[Relay] 收到响应, status=%d, content-type=%s, ttfb=%.3fs", status, resp.Header.Get("Content-Type"), requestLog.DurationSec)
 
 	// 检测是否为 SSE 流式响应
 	contentType := resp.Header.Get("Content-Type")

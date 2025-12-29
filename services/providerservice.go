@@ -20,6 +20,10 @@ type Provider struct {
 	Accent  string `json:"accent"`
 	Enabled bool   `json:"enabled"`
 
+	// 多 API Key 支持 - 同一供应商可配置多个 Key 进行轮换
+	// 向后兼容：如果 APIKeys 为空，则使用 APIKey 字段
+	APIKeys []string `json:"apiKeys,omitempty"`
+
 	// 模型白名单 - Provider 原生支持的模型名
 	// 使用 map 实现 O(1) 查找，向后兼容（omitempty）
 	SupportedModels map[string]bool `json:"supportedModels,omitempty"`
@@ -34,6 +38,18 @@ type Provider struct {
 
 	// 内部字段：配置验证错误（不持久化）
 	configErrors []string `json:"-"`
+}
+
+// GetAPIKeys 获取所有可用的 API Keys
+// 向后兼容：如果 APIKeys 为空，返回包含 APIKey 的切片
+func (p *Provider) GetAPIKeys() []string {
+	if len(p.APIKeys) > 0 {
+		return p.APIKeys
+	}
+	if p.APIKey != "" {
+		return []string{p.APIKey}
+	}
+	return nil
 }
 
 type providerEnvelope struct {
@@ -173,11 +189,16 @@ func (ps *ProviderService) LoadProviders(kind string) ([]Provider, error) {
 	return deepCopyProviders(providers), nil
 }
 
-// deepCopyProviders 执行 Provider 列表的深拷贝，确保 Map 字段也被独立复制
+// deepCopyProviders 执行 Provider 列表的深拷贝，确保 Map 和 Slice 字段也被独立复制
 func deepCopyProviders(src []Provider) []Provider {
 	dst := make([]Provider, len(src))
 	for i, p := range src {
 		dst[i] = p
+		// 深拷贝 APIKeys 切片
+		if p.APIKeys != nil {
+			dst[i].APIKeys = make([]string, len(p.APIKeys))
+			copy(dst[i].APIKeys, p.APIKeys)
+		}
 		// 深拷贝 Map 字段
 		if p.SupportedModels != nil {
 			dst[i].SupportedModels = make(map[string]bool)

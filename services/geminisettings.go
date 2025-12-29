@@ -97,19 +97,23 @@ func (gss *GeminiSettingsService) EnableProxy() error {
 	}
 
 	// 2. 备份并写入 settings.json 以切换到 api-key 模式
+	// 读取现有配置以保留 mcpServers 等其他配置
+	existingSettings := make(map[string]interface{})
 	if _, err := os.Stat(settingsPath); err == nil {
-		content, _ := os.ReadFile(settingsPath)
+		content, readErr := os.ReadFile(settingsPath)
+		if readErr == nil && len(content) > 0 {
+			_ = json.Unmarshal(content, &existingSettings)
+		}
 		_ = os.WriteFile(settingsBackup, content, 0o600)
 	}
 
-	securitySettings := map[string]interface{}{
-		"security": map[string]interface{}{
-			"auth": map[string]interface{}{
-				"selectedType": "api-key",
-			},
+	// 设置 security 配置，保留其他配置（如 mcpServers）
+	existingSettings["security"] = map[string]interface{}{
+		"auth": map[string]interface{}{
+			"selectedType": "api-key",
 		},
 	}
-	settingsData, _ := json.MarshalIndent(securitySettings, "", "  ")
+	settingsData, _ := json.MarshalIndent(existingSettings, "", "  ")
 	return os.WriteFile(settingsPath, settingsData, 0o600)
 }
 

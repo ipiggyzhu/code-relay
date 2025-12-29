@@ -151,6 +151,10 @@
                   <span>{{ stats.tokens }}</span>
                   <span class="card-metric-separator" aria-hidden="true">·</span>
                   <span>{{ stats.cost }}</span>
+                  <template v-if="stats.avgLatency">
+                    <span class="card-metric-separator" aria-hidden="true">·</span>
+                    <span class="card-latency">{{ stats.avgLatency }}</span>
+                  </template>
                 </template>
               </p>
             </div>
@@ -267,14 +271,47 @@
                   />
                 </label>
 
-                <label class="form-field">
-                  <span>{{ t('components.main.form.labels.apiKey') }}</span>
-                  <BaseInput
-                    v-model="modalState.form.apiKey"
-                    type="text"
-                    :placeholder="t('components.main.form.placeholders.apiKey')"
-                  />
-                </label>
+                <div class="form-field">
+                  <span class="label-row">
+                    {{ t('components.main.form.labels.apiKey') }}
+                    <button
+                      type="button"
+                      class="add-key-btn"
+                      :title="t('components.main.form.addKey')"
+                      @click="addApiKey"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none" />
+                      </svg>
+                    </button>
+                  </span>
+                  <div
+                    v-for="(key, index) in modalState.form.apiKeys"
+                    :key="index"
+                    class="api-key-row"
+                  >
+                    <BaseInput
+                      :model-value="key"
+                      type="text"
+                      :placeholder="t('components.main.form.placeholders.apiKey') + (modalState.form.apiKeys.length > 1 ? ` #${index + 1}` : '')"
+                      @update:model-value="(val: string) => modalState.form.apiKeys[index] = val"
+                    />
+                    <button
+                      v-if="modalState.form.apiKeys.length > 1"
+                      type="button"
+                      class="remove-key-btn"
+                      :title="t('components.main.form.removeKey')"
+                      @click="removeApiKey(index)"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none" />
+                      </svg>
+                    </button>
+                  </div>
+                  <p v-if="modalState.form.apiKeys.length > 1" class="multi-key-hint">
+                    {{ t('components.main.form.multiKeyHint') }}
+                  </p>
+                </div>
 
                 <div class="form-field">
                   <span>{{ t('components.main.form.labels.icon') }}</span>
@@ -667,6 +704,7 @@ type ProviderStatDisplay =
       cost: string
       successRateLabel: string
       successRateClass: string
+      avgLatency: string
     }
 
 const SUCCESS_RATE_THRESHOLDS = {
@@ -705,6 +743,10 @@ const providerStatDisplay = (providerName: string): ProviderStatDisplay => {
   const successRateValue = Number.isFinite(stat.success_rate) ? clamp(stat.success_rate, 0, 1) : null
   const successRateLabel = successRateValue !== null ? formatSuccessRateLabel(successRateValue) : ''
   const successRateClass = successRateValue !== null ? successRateClassName(successRateValue) : ''
+  // 格式化平均响应时间
+  const avgLatency = stat.avg_duration_sec > 0
+    ? `${t('components.main.providers.avgLatency')}: ${(stat.avg_duration_sec * 1000).toFixed(0)}ms`
+    : ''
   return {
     state: 'ready',
     requests: `${t('components.main.providers.requests')}: ${formatMetric(stat.total_requests)}`,
@@ -712,6 +754,7 @@ const providerStatDisplay = (providerName: string): ProviderStatDisplay => {
     cost: `${t('components.main.providers.cost')}: ${currencyFormatter.value.format(Math.max(stat.cost_total, 0))}`,
     successRateLabel,
     successRateClass,
+    avgLatency,
   }
 }
 
@@ -816,6 +859,7 @@ type VendorForm = {
   name: string
   apiUrl: string
   apiKey: string
+  apiKeys: string[]  // 多 Key 支持
   officialSite: string
   icon: string
   enabled: boolean
@@ -830,6 +874,7 @@ const defaultFormValues = (): VendorForm => ({
   name: '',
   apiUrl: '',
   apiKey: '',
+  apiKeys: [''],  // 默认一个空 Key 输入框
   officialSite: '',
   icon: defaultIconKey,
   enabled: true,
@@ -921,6 +966,18 @@ const canTestSpeed = computed(() => {
   return modalState.form.apiUrl.trim().length > 0 && !modalState.speedTest.testing
 })
 
+// 多 Key 管理函数
+const addApiKey = () => {
+  modalState.form.apiKeys.push('')
+}
+
+const removeApiKey = (index: number) => {
+  // 至少保留一个 Key 输入框
+  if (modalState.form.apiKeys.length > 1) {
+    modalState.form.apiKeys.splice(index, 1)
+  }
+}
+
 const openCreateModal = () => {
   modalState.tabId = activeTab.value
   modalState.editingId = null
@@ -935,10 +992,15 @@ const openEditModal = (card: AutomationCard) => {
   modalState.tabId = activeTab.value
   modalState.editingId = card.id
   editingCard.value = card
+  // 处理 apiKeys：优先使用 apiKeys，否则使用 apiKey
+  let apiKeys = card.apiKeys && card.apiKeys.length > 0
+    ? [...card.apiKeys]
+    : (card.apiKey ? [card.apiKey] : [''])
   Object.assign(modalState.form, {
     name: card.name,
     apiUrl: card.apiUrl,
-    apiKey: card.apiKey,
+    apiKey: card.apiKey || '',
+    apiKeys: apiKeys,
     officialSite: card.officialSite,
     icon: card.icon,
     enabled: card.enabled,
@@ -964,7 +1026,12 @@ const submitModal = () => {
   if (!list) return
   const name = modalState.form.name.trim()
   const apiUrl = modalState.form.apiUrl.trim().replace(/\/+$/, '') // 去除末尾斜杠
-  const apiKey = modalState.form.apiKey.trim()
+  // 处理多 Key：过滤空值并去重
+  const apiKeys = modalState.form.apiKeys
+    .map(k => k.trim())
+    .filter(k => k.length > 0)
+  // 向后兼容：apiKey 使用第一个 Key
+  const apiKey = apiKeys.length > 0 ? apiKeys[0] : ''
   const officialSite = modalState.form.officialSite.trim()
   const icon = (modalState.form.icon || defaultIconKey).toString().trim().toLowerCase() || defaultIconKey
   modalState.errors.apiUrl = ''
@@ -980,6 +1047,7 @@ const submitModal = () => {
     Object.assign(editingCard.value, {
       apiUrl: apiUrl || editingCard.value.apiUrl,
       apiKey,
+      apiKeys: apiKeys.length > 1 ? apiKeys : undefined, // 只有多个 Key 时才保存 apiKeys
       officialSite,
       icon,
       enabled: modalState.form.enabled,
@@ -993,6 +1061,7 @@ const submitModal = () => {
       name: name || 'Untitled vendor',
       apiUrl,
       apiKey,
+      apiKeys: apiKeys.length > 1 ? apiKeys : undefined, // 只有多个 Key 时才保存 apiKeys
       officialSite,
       icon,
       accent: '#0a84ff',
@@ -1490,6 +1559,72 @@ const onTabChange = (idx: number) => {
 
 .speed-server-error {
   color: #ff3b30;
+}
+
+/* Multi API Key styles */
+.api-key-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.api-key-row:last-child {
+  margin-bottom: 0;
+}
+
+.api-key-row .base-input {
+  flex: 1;
+}
+
+.add-key-btn,
+.remove-key-btn {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--mac-text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, color 0.2s;
+}
+
+.add-key-btn:hover,
+.remove-key-btn:hover {
+  background: var(--mac-border);
+  color: var(--mac-text);
+}
+
+.add-key-btn svg,
+.remove-key-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.remove-key-btn {
+  color: var(--mac-danger, #ff3b30);
+}
+
+.remove-key-btn:hover {
+  background: rgba(255, 59, 48, 0.1);
+  color: var(--mac-danger, #ff3b30);
+}
+
+.multi-key-hint {
+  margin-top: 6px;
+  font-size: 0.75rem;
+  color: var(--mac-text-secondary);
+}
+
+.label-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 </style>

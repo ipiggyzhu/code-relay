@@ -357,6 +357,7 @@ const confirmState = reactive<{ open: boolean; target: McpServer | null }>({
 const platformOptions = computed(() => [
   { id: 'claude-code' as McpPlatform, label: t('components.mcp.platforms.claude') },
   { id: 'codex' as McpPlatform, label: t('components.mcp.platforms.codex') },
+  { id: 'gemini' as McpPlatform, label: t('components.mcp.platforms.gemini') },
 ])
 
 const formMissingPlaceholders = computed(() => detectPlaceholders(modalState.form.url, modalState.form.argsText))
@@ -374,6 +375,7 @@ const loadServers = async () => {
       website: item.website ?? '',
       tips: item.tips ?? '',
       missing_placeholders: item.missing_placeholders ?? [],
+      enabled_in_gemini: item.enabled_in_gemini ?? false,
     }))
   } catch (error) {
     console.error('failed to load mcp servers', error)
@@ -434,8 +436,18 @@ const typeLabel = (type: McpServerType) =>
 const platformEnabled = (server: McpServer, platform: McpPlatform) =>
   server.enable_platform?.includes(platform) ?? false
 
-const platformActive = (server: McpServer, platform: McpPlatform) =>
-  platform === 'claude-code' ? server.enabled_in_claude : server.enabled_in_codex
+const platformActive = (server: McpServer, platform: McpPlatform) => {
+  switch (platform) {
+    case 'claude-code':
+      return server.enabled_in_claude
+    case 'codex':
+      return server.enabled_in_codex
+    case 'gemini':
+      return server.enabled_in_gemini
+    default:
+      return false
+  }
+}
 
 const hasMissingPlaceholders = (server: McpServer) => (server.missing_placeholders?.length ?? 0) > 0
 
@@ -476,6 +488,13 @@ const onPlatformToggle = async (server: McpServer, platform: McpPlatform, event:
   const target = servers.value.find((item) => item.name === server.name)
   if (!target) return
 
+  // 保存旧状态用于回滚
+  const oldPlatforms = [...(target.enable_platform ?? [])]
+  const oldEnabledInClaude = target.enabled_in_claude
+  const oldEnabledInCodex = target.enabled_in_codex
+  const oldEnabledInGemini = target.enabled_in_gemini
+
+  // 更新本地状态
   const next = new Set<McpPlatform>(target.enable_platform ?? [])
   if (targetInput.checked) {
     next.add(platform)
@@ -483,7 +502,32 @@ const onPlatformToggle = async (server: McpServer, platform: McpPlatform, event:
     next.delete(platform)
   }
   target.enable_platform = Array.from(next)
-  await persistServers()
+
+  // 同步更新 enabled_in_xxx 字段，避免重新加载
+  if (platform === 'claude-code') {
+    target.enabled_in_claude = targetInput.checked
+  } else if (platform === 'codex') {
+    target.enabled_in_codex = targetInput.checked
+  } else if (platform === 'gemini') {
+    target.enabled_in_gemini = targetInput.checked
+  }
+
+  // 保存到后端（不重新加载列表）
+  saveBusy.value = true
+  try {
+    await saveMcpServers(servers.value)
+  } catch (error) {
+    console.error('failed to save mcp servers', error)
+    errorMessage.value = t('components.mcp.list.saveError')
+    // 保存失败，回滚状态
+    target.enable_platform = oldPlatforms
+    target.enabled_in_claude = oldEnabledInClaude
+    target.enabled_in_codex = oldEnabledInCodex
+    target.enabled_in_gemini = oldEnabledInGemini
+    targetInput.checked = !targetInput.checked
+  } finally {
+    saveBusy.value = false
+  }
 }
 
 const openCreateModal = () => {
@@ -599,6 +643,10 @@ const submitModal = async () => {
       modalState.editingName === trimmedName
         ? existing?.enabled_in_codex ?? false
         : servers.value.find((server) => server.name === modalState.editingName)?.enabled_in_codex ?? false,
+    enabled_in_gemini:
+      modalState.editingName === trimmedName
+        ? existing?.enabled_in_gemini ?? false
+        : servers.value.find((server) => server.name === modalState.editingName)?.enabled_in_gemini ?? false,
     missing_placeholders: [],
   }
 

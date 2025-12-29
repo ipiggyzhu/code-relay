@@ -124,6 +124,7 @@
         "tokens": "Tokens",
         "cost": "花费",
         "successRate": "成功率",
+        "avgLatency": "平均延迟",
         "loading": "刷新中...",
         "noData": "今日暂无数据",
         "names": {
@@ -157,6 +158,9 @@
           "officialSite": "https://vendor.com",
           "icon": "例如：aicoding、kimi"
         },
+        "addKey": "添加 API Key",
+        "removeKey": "删除此 Key",
+        "multiKeyHint": "配置多个 Key 时，系统会自动轮换使用，当一个 Key 失败时会尝试下一个",
         "hints": {
           "level": "数字越小优先级越高，Level 1 会被优先尝试，失败后依次尝试 Level 2、Level 3 等"
         },
@@ -361,7 +365,8 @@
       },
       "platforms": {
         "claude": "Claude Code",
-        "codex": "Codex"
+        "codex": "Codex",
+        "gemini": "Gemini"
       },
       "form": {
         "createTitle": "新增 MCP 服务器",
