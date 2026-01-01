@@ -57,14 +57,13 @@ const labelForCell = (date: Date) => {
 const normalizeStatKey = (value?: string | null) => {
 	const trimmed = value?.trim()
 	if (!trimmed) return null
-	const match = trimmed.match(/^(\d{2})-(\d{2}) (\d{2})$/)
+	// Match YYYY-MM-DD HH
+	const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2})$/)
 	if (!match) {
 		return null
 	}
-	const [, monthStr, dayStr, hourStr] = match
-	const now = new Date()
-	const year = now.getFullYear()
-	return `${year}-${monthStr}-${dayStr} ${hourStr}`
+	const [, yearStr, monthStr, dayStr, hourStr] = match
+	return `${yearStr}-${monthStr}-${dayStr} ${hourStr}`
 }
 
 type StatBucket = {

@@ -1,4 +1,9 @@
 {
+  "common": {
+    "save": "保存",
+    "cancel": "取消",
+    "saving": "保存中..."
+  },
   "app": {
     "title": "我的应用",
     "login": "登录"
@@ -12,6 +17,7 @@
     "overview": "概览看板",
     "mcp": "MCP 管理",
     "skill": "Skill 列表",
+    "prompt": "提示词",
     "logs": "运行日志",
     "settings": "设置"
   },
@@ -444,6 +450,31 @@
         "loading": "正在加载仓库...",
         "empty": "当前没有配置任何仓库。",
         "branchLabel": "分支：{branch}"
+      }
+    },
+    "prompt": {
+      "title": "提示词管理",
+      "create": "新建提示词",
+      "edit": "编辑提示词",
+      "delete": "删除",
+      "activate": "激活",
+      "deactivate": "取消激活",
+      "active": "已激活",
+      "name": "名称",
+      "content": "内容",
+      "loading": "加载中...",
+      "empty": "暂无提示词，点击右上角按钮创建",
+      "loadError": "加载提示词失败",
+      "saveError": "保存提示词失败",
+      "deleteError": "删除提示词失败",
+      "activateError": "切换激活状态失败",
+      "confirmDelete": "确定要删除这个提示词吗？",
+      "placeholder": {
+        "name": "输入提示词名称",
+        "content": "输入提示词内容（支持 Markdown）"
+      },
+      "hint": {
+        "markdown": "支持 Markdown 格式，激活后将同步到对应平台的配置文件"
       }
     },
     "themesetting": {

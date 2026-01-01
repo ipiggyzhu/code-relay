@@ -1,4 +1,9 @@
 {
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "saving": "Saving..."
+  },
   "app": {
     "title": "My App",
     "login": "Login"
@@ -12,6 +17,7 @@
     "overview": "Overview",
     "mcp": "MCP Manager",
     "skill": "Skill Library",
+    "prompt": "Prompts",
     "logs": "Diagnostics",
     "settings": "Settings"
   },
@@ -442,6 +448,31 @@
         "loading": "Loading repositories...",
         "empty": "No repositories configured.",
         "branchLabel": "Branch: {branch}"
+      }
+    },
+    "prompt": {
+      "title": "Prompt Manager",
+      "create": "New Prompt",
+      "edit": "Edit Prompt",
+      "delete": "Delete",
+      "activate": "Activate",
+      "deactivate": "Deactivate",
+      "active": "Active",
+      "name": "Name",
+      "content": "Content",
+      "loading": "Loading...",
+      "empty": "No prompts yet. Click the button above to create one.",
+      "loadError": "Failed to load prompts",
+      "saveError": "Failed to save prompt",
+      "deleteError": "Failed to delete prompt",
+      "activateError": "Failed to toggle activation",
+      "confirmDelete": "Are you sure you want to delete this prompt?",
+      "placeholder": {
+        "name": "Enter prompt name",
+        "content": "Enter prompt content (Markdown supported)"
+      },
+      "hint": {
+        "markdown": "Supports Markdown format. Active prompts sync to the platform config file."
       }
     },
     "themesetting": {

@@ -78,6 +78,7 @@ func main() {
 	appSettings := services.NewAppSettingsService(autoStartService)
 	mcpService := services.NewMCPService()
 	skillService := services.NewSkillService()
+	promptService := services.NewPromptService()
 	importService := services.NewImportService(providerService, mcpService)
 	dockService := dock.New()
 	versionService := NewVersionService()
@@ -110,6 +111,7 @@ func main() {
 			application.NewService(appSettings),
 			application.NewService(mcpService),
 			application.NewService(skillService),
+			application.NewService(promptService),
 			application.NewService(importService),
 			application.NewService(dockService),
 			application.NewService(versionService),

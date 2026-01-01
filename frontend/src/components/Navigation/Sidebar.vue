@@ -32,6 +32,12 @@ const navItems = computed(() => [
     icon: 'skill'
   },
   {
+    id: 'prompt',
+    path: '/prompt',
+    label: t('sidebar.prompt'),
+    icon: 'prompt'
+  },
+  {
     id: 'logs',
     path: '/logs',
     label: t('sidebar.logs'),
@@ -96,6 +102,12 @@ onMounted(async () => {
               <path d="M6 4h8a4 4 0 014 4v12a3 3 0 00-3-3H6z" />
               <path d="M6 4a2 2 0 00-2 2v13c0 .55.45 1 1 1h11" />
               <path d="M9 8h5" />
+            </svg>
+          </template>
+          <template v-else-if="item.icon === 'prompt'">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              <path d="M8 9h8M8 13h4" />
             </svg>
           </template>
           <template v-else-if="item.icon === 'logs'">

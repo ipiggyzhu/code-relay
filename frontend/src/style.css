@@ -1411,9 +1411,10 @@ html.dark .mac-sidebar-item:hover {
   -webkit-backdrop-filter: blur(16px) saturate(140%);
   padding: 18px 20px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 18px;
+  min-height: 84px;
   box-shadow: var(--glass-shadow);
   transition: transform var(--spring-duration) var(--spring-bounce),
     box-shadow var(--spring-duration-fast) var(--spring-smooth),
@@ -1454,9 +1455,10 @@ html.dark .mac-sidebar-item:hover {
 
 .card-leading {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 16px;
   flex: 1;
+  min-width: 0;
 }
 
 .card-icon {
@@ -1481,6 +1483,9 @@ html.dark .mac-sidebar-item:hover {
 
 .card-text {
   text-align: left;
+  flex: 1;
+  min-width: 0;
+  padding-top: 2px;
 }
 
 .card-title-row {
@@ -1523,10 +1528,12 @@ html.dark .mac-sidebar-item:hover {
 }
 
 .card-metrics {
-  margin: 4px 0 0;
-  font-size: 0.82rem;
+  margin: 6px 0 0;
+  font-size: 0.8rem;
   color: rgba(15, 23, 42, 0.65);
   font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+  word-break: break-all;
 }
 
 .card-metric-separator {
@@ -1581,6 +1588,8 @@ html.dark .card-meta {
   display: flex;
   align-items: center;
   gap: 10px;
+  padding-top: 7px;
+  flex-shrink: 0;
 }
 
 .ghost-icon {
