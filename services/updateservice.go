@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -199,11 +200,13 @@ func (us *UpdateService) InstallUpdate(downloadedPath string) error {
 	}
 
 	// 启动批处理脚本
-	// 使用 /C 执行命令后关闭cmd
-	// start 命令的第一个带引号的参数会被当作窗口标题，所以用空引号 "" 作为标题
-	// /WAIT 参数不使用，让脚本在后台运行
-	cmd := exec.Command("cmd", "/C", "start", `""`, batchPath)
-	cmd.Dir = os.TempDir() // 设置工作目录
+	// 使用 CREATE_NEW_CONSOLE (0x10) 在新窗口中运行批处理脚本
+	// 不使用 start 命令，避免其复杂的参数解析问题
+	cmd := exec.Command("cmd", "/C", batchPath)
+	cmd.Dir = os.TempDir()
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags: 0x10, // CREATE_NEW_CONSOLE
+	}
 	if err := cmd.Start(); err != nil {
 		return err
 	}
@@ -225,12 +228,23 @@ func (us *UpdateService) createUpdateScript(currentExe, newExe string) string {
 	exeName := filepath.Base(currentExe)
 
 	// 转义路径中的特殊字符
-	// 在批处理中 % 是特殊字符，需要转义为 %%
-	// ! 在 enabledelayedexpansion 模式下是特殊字符，需要转义为 ^^!
-	currentExeEscaped := strings.ReplaceAll(currentExe, "%", "%%")
-	currentExeEscaped = strings.ReplaceAll(currentExeEscaped, "!", "^^!")
-	newExeEscaped := strings.ReplaceAll(newExe, "%", "%%")
-	newExeEscaped = strings.ReplaceAll(newExeEscaped, "!", "^^!")
+	// 注意转义顺序：^ 必须最先转义，因为它是转义字符本身
+	// 在批处理中：
+	// - ^ 是转义字符，需要转义为 ^^
+	// - % 是变量标识符，需要转义为 %%
+	// - ! 在 enabledelayedexpansion 模式下是变量标识符，需要转义为 ^^!
+	// - & 是命令分隔符，需要转义为 ^&
+	escapeForBatch := func(path string) string {
+		// ^ 必须第一个处理
+		result := strings.ReplaceAll(path, "^", "^^")
+		result = strings.ReplaceAll(result, "%", "%%")
+		result = strings.ReplaceAll(result, "!", "^^!")
+		result = strings.ReplaceAll(result, "&", "^&")
+		return result
+	}
+
+	currentExeEscaped := escapeForBatch(currentExe)
+	newExeEscaped := escapeForBatch(newExe)
 
 	// 更新脚本：显示窗口 -> 等待程序退出 -> 替换文件 -> 重启程序
 	// 注意：路径使用双引号包裹，支持包含空格的路径
@@ -285,6 +299,10 @@ echo 程序已退出，开始更新...
 echo.
 echo [%%date%% %%time%%] 程序已退出，开始复制文件... >> "%%TEMP%%\code-relay-update.log"
 
+:: 先尝试重命名旧文件（更安全的更新方式）
+if exist "%%CURRENT_EXE%%.old" del /Q "%%CURRENT_EXE%%.old" >nul 2>&1
+ren "%%CURRENT_EXE%%" "%%EXE_NAME%%.old" >nul 2>&1
+
 :: 尝试直接复制
 echo 正在复制新版本文件...
 copy /Y "%%NEW_EXE%%" "%%CURRENT_EXE%%" >nul 2>&1
@@ -294,6 +312,8 @@ if not errorlevel 1 (
     if "!COPIED_SIZE!"=="!NEW_SIZE!" (
         echo 更新成功！
         echo [%%date%% %%time%%] 直接复制成功，文件大小: !COPIED_SIZE! >> "%%TEMP%%\code-relay-update.log"
+        :: 删除旧版本备份
+        if exist "%%CURRENT_EXE%%.old" del /Q "%%CURRENT_EXE%%.old" >nul 2>&1
         goto success
     )
     echo 复制后文件大小不匹配，尝试提升权限...
@@ -303,7 +323,11 @@ if not errorlevel 1 (
 echo 直接复制失败，尝试提升权限...
 echo [%%date%% %%time%%] 直接复制失败，尝试提升权限... >> "%%TEMP%%\code-relay-update.log"
 
-:: 如果直接复制失败，尝试使用 PowerShell 提升权限
+:: 如果直接复制失败，恢复旧文件并尝试使用 PowerShell 提升权限
+if exist "%%CURRENT_EXE%%.old" (
+    if not exist "%%CURRENT_EXE%%" ren "%%EXE_NAME%%.old" "%%EXE_NAME%%" >nul 2>&1
+)
+
 :: 使用单独的批处理文件来执行复制，避免引号转义问题
 echo @echo off > "%%TEMP%%\code-relay-copy.bat"
 echo copy /Y "%%NEW_EXE%%" "%%CURRENT_EXE%%" >> "%%TEMP%%\code-relay-copy.bat"
@@ -314,6 +338,8 @@ for %%%%A in ("%%CURRENT_EXE%%") do set "COPIED_SIZE=%%%%~zA"
 if "!COPIED_SIZE!"=="!NEW_SIZE!" (
     echo 提升权限复制成功！
     echo [%%date%% %%time%%] 提升权限复制成功，文件大小: !COPIED_SIZE! >> "%%TEMP%%\code-relay-update.log"
+    :: 删除旧版本备份
+    if exist "%%CURRENT_EXE%%.old" del /Q "%%CURRENT_EXE%%.old" >nul 2>&1
     goto success
 )
 
@@ -324,6 +350,10 @@ echo 请手动复制文件。
 echo 源文件: %%NEW_EXE%%
 echo 目标: %%CURRENT_EXE%%
 echo [%%date%% %%time%%] 更新失败，文件大小不匹配 >> "%%TEMP%%\code-relay-update.log"
+:: 恢复旧版本
+if exist "%%CURRENT_EXE%%.old" (
+    if not exist "%%CURRENT_EXE%%" ren "%%EXE_NAME%%.old" "%%EXE_NAME%%" >nul 2>&1
+)
 pause
 exit /b 1
 
@@ -341,8 +371,8 @@ del /Q "%%TEMP%%\code-relay-copy.bat" >nul 2>&1
 echo 正在启动新版本...
 echo [%%date%% %%time%%] 启动新版本: %%CURRENT_EXE%% >> "%%TEMP%%\code-relay-update.log"
 
-:: 启动新版本
-start "" "%%CURRENT_EXE%%"
+:: 启动新版本（直接调用，不使用 start 命令避免路径解析问题）
+"%%CURRENT_EXE%%"
 
 echo.
 echo 此窗口将在 3 秒后自动关闭...
@@ -350,6 +380,7 @@ timeout /t 3 /nobreak >nul
 exit /b 0
 `, newExeEscaped, currentExeEscaped, exeName)
 }
+
 
 // findPlatformAsset 查找对应平台的资源文件
 func (us *UpdateService) findPlatformAsset(assets []Asset) *Asset {
