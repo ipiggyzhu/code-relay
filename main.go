@@ -42,7 +42,7 @@ func (a *AppService) OpenSecondWindow() {
 	win := a.App.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:     "Logs",
 		Name:      name,
-		Width:     960,
+		Width:     1100,
 		Height:    680,
 		MinWidth:  600,
 		MinHeight: 300,
@@ -136,7 +136,7 @@ func main() {
 	// 'URL' is the URL that will be loaded into the webview.
 	mainWindow := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:     "Code Relay",
-		Width:     960,
+		Width:     1100,
 		Height:    680,
 		MinWidth:  600,
 		MinHeight: 300,
