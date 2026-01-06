@@ -385,7 +385,7 @@ onMounted(() => {
 .prompt-list {
   display: grid;
   /* Balanced min-width for better column distribution */
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 24px;
   width: 100%;
 }
@@ -404,7 +404,6 @@ onMounted(() => {
   box-shadow: var(--glass-shadow);
   position: relative;
   /* Prevent single card from being too bulky, but allow enough width */
-  max-width: 540px;
 }
 
 .prompt-card:hover {
