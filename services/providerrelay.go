@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/daodao97/xgo/xdb"
@@ -26,17 +27,12 @@ type ProviderRelayService struct {
 	logService      *LogService
 	server          *http.Server
 	addr            string
-	
-	// 记录每个供应商上次被禁用/启用时的请求数
-	// key: "platform:providerName", value: 上次检查时的请求数
-	lastCheckRequests map[string]int64
-	lastCheckMu       sync.Mutex
 }
 
-// 自动禁用阈值
+// 权重相关常量
 const (
-	AutoDisableSuccessRateThreshold = 0.50 // 成功率低于50%时自动禁用
-	AutoDisableMinNewRequests       = 20   // 手动启用后至少20个新请求才重新检查
+	MaxProviderWeight     = 10 // 最大权重（成功率100%时）
+	DefaultProviderWeight = 10 // 新渠道默认权重（无历史数据时）
 )
 
 func NewProviderRelayService(providerService *ProviderService, logService *LogService, addr string) *ProviderRelayService {
@@ -46,23 +42,23 @@ func NewProviderRelayService(providerService *ProviderService, logService *LogSe
 
 	home, _ := os.UserHomeDir()
 	dataDir := filepath.Join(home, ".code-relay")
-	
+
 	// 确保数据目录存在
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
 		log.Printf("创建数据目录失败: %v", err)
 	}
-	
+
 	const sqliteOptions = "?cache=shared&mode=rwc&_busy_timeout=5000&_journal_mode=WAL"
 
 	dbPath := filepath.Join(dataDir, "app.db"+sqliteOptions)
 	log.Printf("[DB] 初始化数据库: %s", dbPath)
-	
+
 	if err := xdb.Inits([]xdb.Config{
 		{
 			Name:        "default",
 			Driver:      "sqlite",
 			DSN:         dbPath,
-			MaxOpenConn: 5,  // 增加连接数
+			MaxOpenConn: 5, // 增加连接数
 			MaxIdleConn: 2,
 		},
 	}); err != nil {
@@ -74,10 +70,9 @@ func NewProviderRelayService(providerService *ProviderService, logService *LogSe
 	}
 
 	return &ProviderRelayService{
-		providerService:   providerService,
-		logService:        logService,
-		addr:              addr,
-		lastCheckRequests: make(map[string]int64),
+		providerService: providerService,
+		logService:      logService,
+		addr:            addr,
 	}
 }
 
@@ -92,13 +87,13 @@ func (prs *ProviderRelayService) Start() error {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(gin.Recovery())
-	
+
 	// 添加请求日志中间件
 	router.Use(func(c *gin.Context) {
 		log.Printf("[Relay] 中间件: 收到 %s %s", c.Request.Method, c.Request.URL.Path)
 		c.Next()
 	})
-	
+
 	prs.registerRoutes(router)
 
 	prs.server = &http.Server{
@@ -189,7 +184,7 @@ func (prs *ProviderRelayService) proxyHandler(kind string, endpoint string) gin.
 		log.Printf("[Relay] ========== 收到请求 ==========")
 		log.Printf("[Relay] 请求路径: %s %s", c.Request.Method, c.Request.URL.Path)
 		log.Printf("[Relay] 客户端: %s", c.ClientIP())
-		
+
 		var bodyBytes []byte
 		if c.Request.Body != nil {
 			data, err := io.ReadAll(c.Request.Body)
@@ -204,7 +199,7 @@ func (prs *ProviderRelayService) proxyHandler(kind string, endpoint string) gin.
 
 		isStream := gjson.GetBytes(bodyBytes, "stream").Bool()
 		requestedModel := gjson.GetBytes(bodyBytes, "model").String()
-		
+
 		log.Printf("[Relay] 请求模型: %s, 流式: %v, 请求体大小: %d bytes", requestedModel, isStream, len(bodyBytes))
 
 		providers, err := prs.providerService.LoadProviders(kind)
@@ -213,7 +208,7 @@ func (prs *ProviderRelayService) proxyHandler(kind string, endpoint string) gin.
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load providers"})
 			return
 		}
-		
+
 		log.Printf("[Relay] 加载到 %d 个 providers", len(providers))
 
 		active := make([]Provider, 0, len(providers))
@@ -248,7 +243,7 @@ func (prs *ProviderRelayService) proxyHandler(kind string, endpoint string) gin.
 			log.Printf("[Relay] 添加 provider: %s (可用 Keys: %d)", provider.Name, len(provider.GetAPIKeys()))
 			active = append(active, provider)
 		}
-		
+
 		log.Printf("[Relay] 可用 providers: %d 个", len(active))
 
 		if len(active) == 0 {
@@ -264,7 +259,7 @@ func (prs *ProviderRelayService) proxyHandler(kind string, endpoint string) gin.
 					// 静默处理
 				}
 			}()
-			
+
 			// 返回符合 Anthropic API 格式的错误响应
 			message := "no providers available"
 			if requestedModel != "" {
@@ -287,16 +282,31 @@ func (prs *ProviderRelayService) proxyHandler(kind string, endpoint string) gin.
 		// 性能优化：只克隆白名单内的请求头，避免无效遍历
 		clientHeaders := filterHeaders(c.Request.Header)
 
-		totalProviders := len(active)
+		// 获取所有渠道的成功率，用于权重计算
+		var successRates map[string]float64
+		if prs.logService != nil {
+			successRates, _ = prs.logService.GetAllProviderSuccessRates(kind)
+		}
+
+		// 按权重排序 providers（权重高的优先、相同权重随机）
+		weightedProviders := prs.sortProvidersByWeight(active, successRates)
+
+		log.Printf("[Relay] 按权重排序后的 providers:")
+		for i, wp := range weightedProviders {
+			log.Printf("[Relay]   %d. %s (权重: %d, 成功率: %.1f%%)",
+				i+1, wp.provider.Name, wp.weight, wp.successRate*100)
+		}
+
+		totalProviders := len(weightedProviders)
 		var lastErr error
 		var lastStatus int
 		var lastBody []byte
 		var lastHeaders http.Header
 		bodyCache := make(map[string][]byte)
 
-		for i := range active {
-			provider := &active[i] // 使用指针以便修改 currentKeyIndex
-			isLastProvider := (i == totalProviders - 1)
+		for i := range weightedProviders {
+			provider := &weightedProviders[i].provider
+			isLastProvider := (i == totalProviders-1)
 
 			effectiveModel := provider.GetEffectiveModel(requestedModel)
 
@@ -394,7 +404,7 @@ func (prs *ProviderRelayService) proxyHandler(kind string, endpoint string) gin.
 			message = message + ": " + lastErr.Error()
 		}
 		log.Printf("[Relay] 所有 provider 失败: %s", message)
-		
+
 		// 返回符合 Anthropic API 格式的错误响应
 		c.Header("Content-Type", "application/json")
 		c.JSON(http.StatusBadGateway, gin.H{
@@ -475,7 +485,7 @@ func (prs *ProviderRelayService) forwardRequestWithKey(
 	model string,
 ) (int, http.Header, []byte, error) {
 	targetURL := joinURL(provider.APIURL, endpoint)
-	
+
 	// 构建查询参数
 	if len(query) > 0 {
 		params := make([]string, 0, len(query))
@@ -536,7 +546,7 @@ func (prs *ProviderRelayService) forwardRequestWithKey(
 	for k, v := range clientHeaders {
 		req.Header.Set(k, v)
 	}
-	
+
 	// 设置必要的请求头
 	req.Header.Set("Content-Type", "application/json")
 	// 同时设置两种认证头，兼容不同的 API 服务
@@ -587,7 +597,7 @@ func (prs *ProviderRelayService) forwardRequestWithKey(
 	// 如果请求是流式的，或者响应是 SSE，都使用流式转发
 	// 但只有成功时才流式转发，失败时需要尝试下一个 provider
 	shouldStream := isStream || isSSE
-	
+
 	if shouldStream && status >= 200 && status < 300 {
 		log.Printf("[Relay] 使用流式转发模式 (请求stream=%v, 响应SSE=%v, status=%d)", isStream, isSSE, status)
 		// 使用更加透传的方案：直接设置响应头并使用自定义 Writer 进行转发
@@ -617,7 +627,6 @@ func (prs *ProviderRelayService) forwardRequestWithKey(
 			requestLog.InputTokens, requestLog.OutputTokens)
 
 		writeLog()
-		go prs.checkAndAutoDisable(kind, provider.Name)
 
 		return -1, nil, nil, nil
 	}
@@ -643,14 +652,11 @@ func (prs *ProviderRelayService) forwardRequestWithKey(
 		parserFn(bodyStr, requestLog)
 	}
 
-	log.Printf("[Relay] 转发完成, status=%d, body_size=%d, tokens: in=%d, out=%d", 
+	log.Printf("[Relay] 转发完成, status=%d, body_size=%d, tokens: in=%d, out=%d",
 		status, len(body), requestLog.InputTokens, requestLog.OutputTokens)
 
 	writeLog()
-	
-	// 异步检查成功率，如果低于阈值则自动禁用
-	go prs.checkAndAutoDisable(kind, provider.Name)
-	
+
 	// 返回响应数据，由调用者决定如何处理
 	return status, resp.Header, body, nil
 }
@@ -662,64 +668,50 @@ func getTokenParser(kind string) func(string, *RequestLog) {
 	return ClaudeCodeParseTokenUsageFromResponse
 }
 
-// checkAndAutoDisable 检查供应商成功率，如果低于阈值则自动禁用
-// 逻辑：只有当自上次检查后新增了至少5个请求，才重新检查成功率
-func (prs *ProviderRelayService) checkAndAutoDisable(kind string, providerName string) {
-	if prs.logService == nil || prs.providerService == nil {
-		return
+// weightedProvider 用于存储 provider 及其权重信息
+type weightedProvider struct {
+	provider    Provider
+	weight      int     // 权重 0-10
+	successRate float64 // 成功率 0-1
+}
+
+// sortProvidersByWeight 根据成功率计算权重并排序 providers
+// 权重高的排在前面，相同权重的随机排序
+// 权重计算公式: weight = int(successRate * MaxProviderWeight)
+// 新渠道（无历史数据）默认权重为 DefaultProviderWeight
+func (prs *ProviderRelayService) sortProvidersByWeight(providers []Provider, successRates map[string]float64) []weightedProvider {
+	weighted := make([]weightedProvider, len(providers))
+
+	for i, p := range providers {
+		successRate, exists := successRates[p.Name]
+		weight := DefaultProviderWeight // 默认权重（新渠道）
+
+		if exists {
+			// 根据成功率计算权重
+			weight = int(successRate * float64(MaxProviderWeight))
+		} else {
+			// 新渠道使用完整的成功率 1.0
+			successRate = 1.0
+		}
+
+		weighted[i] = weightedProvider{
+			provider:    p,
+			weight:      weight,
+			successRate: successRate,
+		}
 	}
 
-	// 获取成功率和总请求数
-	successRate, totalRequests, err := prs.logService.GetProviderSuccessRate(kind, providerName)
-	if err != nil {
-		log.Printf("[Relay] 获取供应商 %s 成功率失败: %v", providerName, err)
-		return
-	}
+	// 先随机打乱，确保相同权重的渠道随机排序
+	rand.Shuffle(len(weighted), func(i, j int) {
+		weighted[i], weighted[j] = weighted[j], weighted[i]
+	})
 
-	// 构建 key
-	key := kind + ":" + providerName
-	
-	prs.lastCheckMu.Lock()
-	lastCheck, exists := prs.lastCheckRequests[key]
-	// 如果是第一次检查这个供应商，以当前请求数为基准
-	// 这样重启后不会立即禁用，需要等新增5个请求
-	if !exists {
-		prs.lastCheckRequests[key] = totalRequests
-		prs.lastCheckMu.Unlock()
-		log.Printf("[Relay] 初始化供应商 %s 检查基准: %d 个请求", providerName, totalRequests)
-		return
-	}
-	prs.lastCheckMu.Unlock()
+	// 再按权重降序稳定排序（权重高的在前面）
+	sort.SliceStable(weighted, func(i, j int) bool {
+		return weighted[i].weight > weighted[j].weight
+	})
 
-	// 计算自上次检查后的新请求数
-	newRequests := totalRequests - lastCheck
-	
-	// 新请求数不足，不检查
-	if newRequests < AutoDisableMinNewRequests {
-		return
-	}
-
-	// 成功率高于阈值，更新检查点但不禁用
-	if successRate >= AutoDisableSuccessRateThreshold {
-		prs.lastCheckMu.Lock()
-		prs.lastCheckRequests[key] = totalRequests
-		prs.lastCheckMu.Unlock()
-		return
-	}
-
-	// 成功率低于阈值，自动禁用
-	log.Printf("[Relay] ⚠️ 供应商 %s 成功率 %.1f%% 低于阈值 %.0f%%（新请求数: %d），自动禁用", 
-		providerName, successRate*100, AutoDisableSuccessRateThreshold*100, newRequests)
-	
-	if err := prs.providerService.DisableProvider(kind, providerName); err != nil {
-		log.Printf("[Relay] 自动禁用供应商 %s 失败: %v", providerName, err)
-	} else {
-		log.Printf("[Relay] ✅ 供应商 %s 已自动禁用，请手动检查后重新启用", providerName)
-		// 记录禁用时的请求数，下次启用后需要再累积5个新请求才会重新检查
-		prs.lastCheckMu.Lock()
-		prs.lastCheckRequests[key] = totalRequests
-		prs.lastCheckMu.Unlock()
-	}
+	return weighted
 }
 
 var allowedForwardHeaders = map[string]bool{
@@ -863,7 +855,7 @@ func (s *streamParser) Flush() {
 func RequestLogHook(c *gin.Context, kind string, usage *RequestLog) func(data []byte) (bool, []byte) {
 	// 使用 stateful buffer 记录未关闭的行，防止 chunk 截断导致解析失败
 	var rowBuf bytes.Buffer
-	
+
 	parserFn := ClaudeCodeParseTokenUsageFromResponse
 	if kind == "codex" {
 		parserFn = CodexParseTokenUsageFromResponse
@@ -884,7 +876,7 @@ func RequestLogHook(c *gin.Context, kind string, usage *RequestLog) func(data []
 		}
 
 		rowBuf.Write(data)
-		
+
 		for {
 			line, err := rowBuf.ReadString('\n')
 			if err != nil {
@@ -892,7 +884,7 @@ func RequestLogHook(c *gin.Context, kind string, usage *RequestLog) func(data []
 				rowBuf.Write([]byte(line))
 				break
 			}
-			
+
 			// 处理完整的一行 SSE 数据
 			trimmed := strings.TrimSpace(line)
 			if strings.HasPrefix(trimmed, "data:") {

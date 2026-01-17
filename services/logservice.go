@@ -5,6 +5,7 @@ import (
 	"log"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	modelpricing "coderelay/resources/model-pricing"
@@ -14,8 +15,23 @@ import (
 
 const timeLayout = "2006-01-02 15:04:05"
 
+// 成功率缓存配置
+const (
+	SuccessRateCacheTTL = 30 * time.Second // 缓存有效期 30 秒
+)
+
+// successRateCache 成功率缓存结构
+type successRateCache struct {
+	data      map[string]float64 // platform:provider -> successRate
+	updatedAt time.Time
+}
+
 type LogService struct {
 	pricing *modelpricing.Service
+
+	// 成功率缓存
+	srCache   map[string]*successRateCache // key: platform
+	srCacheMu sync.RWMutex
 }
 
 func NewLogService() *LogService {
@@ -23,7 +39,10 @@ func NewLogService() *LogService {
 	if err != nil {
 		log.Printf("pricing service init failed: %v", err)
 	}
-	return &LogService{pricing: svc}
+	return &LogService{
+		pricing: svc,
+		srCache: make(map[string]*successRateCache),
+	}
 }
 
 func (ls *LogService) ListRequestLogs(platform string, provider string, limit int) ([]RequestLog, error) {
@@ -33,7 +52,7 @@ func (ls *LogService) ListRequestLogs(platform string, provider string, limit in
 	if limit > 1000 {
 		limit = 1000
 	}
-	
+
 	model := xdb.New("request_log")
 	options := []xdb.Option{
 		xdb.OrderByDesc("id"),
@@ -397,7 +416,7 @@ func (ls *LogService) ProviderDailyStats(platform string) ([]ProviderDailyStat, 
 			durationMap[provider] = append(durationMap[provider], durationSec)
 		}
 	}
-	
+
 	stats := make([]ProviderDailyStat, 0, len(statMap))
 	for _, stat := range statMap {
 		if stat.TotalRequests > 0 {
@@ -522,7 +541,6 @@ func startOfHour(t time.Time) time.Time {
 	return time.Date(y, m, d, t.Hour(), 0, 0, 0, t.Location())
 }
 
-
 func isNoSuchTableErr(err error) bool {
 	if err == nil {
 		return false
@@ -539,7 +557,7 @@ func (ls *LogService) GetProviderSuccessRate(platform string, providerName strin
 
 	// 查询今天的数据
 	start := startOfDay(time.Now())
-	
+
 	model := xdb.New("request_log")
 	options := []xdb.Option{
 		xdb.WhereGte("created_at", start.Format(timeLayout)),
@@ -549,7 +567,7 @@ func (ls *LogService) GetProviderSuccessRate(platform string, providerName strin
 	if platform != "" {
 		options = append(options, xdb.WhereEq("platform", platform))
 	}
-	
+
 	records, err := model.Selects(options...)
 	if err != nil {
 		if errors.Is(err, xdb.ErrNotFound) || isNoSuchTableErr(err) {
@@ -564,7 +582,7 @@ func (ls *LogService) GetProviderSuccessRate(platform string, providerName strin
 
 	var totalRequests int64
 	var successfulRequests int64
-	
+
 	for _, record := range records {
 		totalRequests++
 		httpCode := record.GetInt("http_code")
@@ -579,6 +597,127 @@ func (ls *LogService) GetProviderSuccessRate(platform string, providerName strin
 
 	successRate := float64(successfulRequests) / float64(totalRequests)
 	return successRate, totalRequests, nil
+}
+
+// GetAllProviderSuccessRates 获取指定平台所有供应商的成功率
+// 返回 map[providerName]successRate，成功率范围 0-1
+// 使用缓存减少数据库压力，缓存 TTL 为 30 秒
+func (ls *LogService) GetAllProviderSuccessRates(platform string) (map[string]float64, error) {
+	cacheKey := platform
+	if cacheKey == "" {
+		cacheKey = "__all__"
+	}
+
+	// 第一次检查：尝试从缓存读取（读锁）
+	ls.srCacheMu.RLock()
+	if cache, exists := ls.srCache[cacheKey]; exists {
+		if time.Since(cache.updatedAt) < SuccessRateCacheTTL {
+			// 缓存有效，返回副本
+			result := make(map[string]float64, len(cache.data))
+			for k, v := range cache.data {
+				result[k] = v
+			}
+			ls.srCacheMu.RUnlock()
+			return result, nil
+		}
+	}
+	ls.srCacheMu.RUnlock()
+
+	// 缓存过期或不存在，获取写锁
+	ls.srCacheMu.Lock()
+	defer ls.srCacheMu.Unlock()
+
+	// 第二次检查：防止并发时多个 goroutine 同时查询数据库
+	if cache, exists := ls.srCache[cacheKey]; exists {
+		if time.Since(cache.updatedAt) < SuccessRateCacheTTL {
+			// 其他 goroutine 已经更新了缓存，返回副本
+			result := make(map[string]float64, len(cache.data))
+			for k, v := range cache.data {
+				result[k] = v
+			}
+			return result, nil
+		}
+	}
+
+	// 查询数据库
+	result, err := ls.loadProviderSuccessRates(platform)
+	if err != nil {
+		return nil, err
+	}
+
+	// 更新缓存
+	ls.srCache[cacheKey] = &successRateCache{
+		data:      result,
+		updatedAt: time.Now(),
+	}
+
+	// 返回副本
+	resultCopy := make(map[string]float64, len(result))
+	for k, v := range result {
+		resultCopy[k] = v
+	}
+	return resultCopy, nil
+}
+
+// loadProviderSuccessRates 从数据库加载供应商成功率（内部方法）
+func (ls *LogService) loadProviderSuccessRates(platform string) (map[string]float64, error) {
+	result := make(map[string]float64)
+
+	// 查询今天的数据
+	start := startOfDay(time.Now())
+
+	model := xdb.New("request_log")
+	options := []xdb.Option{
+		xdb.WhereGte("created_at", start.Format(timeLayout)),
+		xdb.WhereNotEq("provider", ""),
+		xdb.Field("provider", "http_code"),
+	}
+	if platform != "" {
+		options = append(options, xdb.WhereEq("platform", platform))
+	}
+
+	records, err := model.Selects(options...)
+	if err != nil {
+		if errors.Is(err, xdb.ErrNotFound) || isNoSuchTableErr(err) {
+			return result, nil
+		}
+		return nil, err
+	}
+
+	// 统计每个渠道的成功和总请求数
+	type stats struct {
+		total   int64
+		success int64
+	}
+	providerStats := make(map[string]*stats)
+
+	for _, record := range records {
+		provider := strings.TrimSpace(record.GetString("provider"))
+		if provider == "" {
+			continue
+		}
+
+		s := providerStats[provider]
+		if s == nil {
+			s = &stats{}
+			providerStats[provider] = s
+		}
+
+		s.total++
+		httpCode := record.GetInt("http_code")
+		if httpCode >= 200 && httpCode < 300 {
+			s.success++
+		}
+	}
+
+	// 计算成功率
+	for provider, s := range providerStats {
+		if s.total > 0 {
+			result[provider] = float64(s.success) / float64(s.total)
+		}
+	}
+
+	return result, nil
 }
 
 type HeatmapStat struct {
